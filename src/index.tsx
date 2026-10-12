@@ -4,9 +4,9 @@ import {
   addDays, catchUp, DAYS, getSettings, hashPassword, localDate, money, newToken, nextAllowanceDate,
   parseCents, prettyDate, USER_COLS, verifyPassword, type Tx, type User,
 } from './lib'
-import { Avatar, BalanceChart, DaySelect, Layout, Money, PHOTO_SCRIPT, TxTable } from './views'
+import { Avatar, BalanceChart, DaySelect, Layout, Money, PHOTO_SCRIPT, TxActions, TxDialog, TxTable, type NavKid } from './views'
 
-type Env = { Bindings: { DB: D1Database }; Variables: { user: User | null } }
+type Env = { Bindings: { DB: D1Database }; Variables: { user: User | null; navKids: NavKid[] } }
 type C = Context<Env>
 
 const app = new Hono<Env>()
@@ -25,6 +25,12 @@ app.use('*', async (c, next) => {
         .first<User>()
     : null
   c.set('user', user)
+  c.set(
+    'navKids',
+    user?.role === 'parent'
+      ? (await db.prepare(`SELECT ${USER_COLS} FROM users WHERE role = 'kid' ORDER BY display_name`).all<NavKid>()).results
+      : [],
+  )
 
   const path = new URL(c.req.url).pathname
   if (path !== '/setup' && !user) {
@@ -158,8 +164,10 @@ app.get('/', async (c) => {
   const names = new Map(all.map((k) => [k.id, k.display_name]))
 
   return c.html(
-    <Layout title="Home" user={user} {...flash(c)}>
+    <Layout title="Home" user={user} kids={c.get('navKids')} active="home" {...flash(c)}>
       <h1>Welcome, {user.display_name}</h1>
+      {all.length > 0 && <TxActions />}
+      {all.length > 0 && <TxDialog kids={all} back="/" />}
       {all.length === 0 && <p class="card">No kid accounts yet. <a href="/admin">Add one in Settings</a>.</p>}
       {all.length > 0 && (
         <div class="card hero">
@@ -178,28 +186,6 @@ app.get('/', async (c) => {
               </a>
             ))}
           </div>
-        </div>
-      )}
-
-      {all.length > 0 && (
-        <div class="card">
-          <h2>Add a transaction</h2>
-          <form class="stack" method="post" action="/tx">
-            <div class="row">
-              <label>Account
-                <select name="kid_id" required>
-                  {all.map((k) => <option value={String(k.id)}>{k.display_name}</option>)}
-                </select>
-              </label>
-              <label>Amount<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
-            </div>
-            <div class="toggle">
-              <label><input type="radio" name="kind" value="deposit" checked />Deposit</label>
-              <label><input type="radio" name="kind" value="debit" />Debit</label>
-            </div>
-            <label>What for?<input name="memo" maxlength={100} placeholder="e.g. Birthday money, LEGO set" /></label>
-            <button class="primary">Save</button>
-          </form>
         </div>
       )}
 
@@ -232,8 +218,10 @@ async function kidPage(c: C, kidId: number) {
   const isMe = viewer.id === kid.id
 
   return c.html(
-    <Layout title={kid.display_name} user={viewer} {...flash(c)}>
+    <Layout title={kid.display_name} user={viewer} kids={c.get('navKids')} active={isMe ? 'home' : `kid:${kid.id}`} {...flash(c)}>
       <h1>{isMe ? `Welcome, ${kid.display_name}` : kid.display_name}</h1>
+      {viewer.role === 'parent' && <TxActions kidId={kid.id} />}
+      {viewer.role === 'parent' && <TxDialog kids={c.get('navKids')} back={`/kid/${kid.id}`} />}
       <div class="card hero">
         <div style="display:flex;align-items:center;gap:12px">
           <Avatar user={kid} size={36} />
@@ -280,18 +268,19 @@ app.post('/tx', async (c) => {
   const cents = parseCents(b.amount)
   const kind = b.kind === 'debit' ? 'debit' : 'deposit'
   const memo = field(b, 'memo').slice(0, 100)
+  const to = /^\/(kid\/\d+)?$/.test(field(b, 'back')) ? field(b, 'back') : '/'
   const kid = (await kids(db)).find((k) => k.id === kidId)
-  if (!kid) return back(c, '/', 'err', 'Pick an account.')
-  if (!cents) return back(c, '/', 'err', 'Enter an amount greater than $0.')
+  if (!kid) return back(c, to, 'err', 'Pick an account.')
+  if (!cents) return back(c, to, 'err', 'Enter an amount greater than $0.')
   if (kind === 'debit' && cents > kid.balance) {
-    return back(c, '/', 'err', `${kid.display_name} only has ${money(kid.balance)}.`)
+    return back(c, to, 'err', `${kid.display_name} only has ${money(kid.balance)}.`)
   }
   const s = (await getSettings(db))!
   await db
     .prepare('INSERT INTO transactions (kid_id, amount_cents, type, memo, date, created_by) VALUES (?, ?, ?, ?, ?, ?)')
     .bind(kidId, kind === 'debit' ? -cents : cents, kind, memo, localDate(s.timezone), c.get('user')!.id)
     .run()
-  return back(c, '/', 'msg', `${kind === 'debit' ? 'Took' : 'Added'} ${money(cents)} ${kind === 'debit' ? 'from' : 'to'} ${kid.display_name}'s account.`)
+  return back(c, to, 'msg', `${kind === 'debit' ? 'Took' : 'Added'} ${money(cents)} ${kind === 'debit' ? 'from' : 'to'} ${kid.display_name}'s account.`)
 })
 
 // ---------- parent settings ----------
@@ -303,7 +292,7 @@ app.get('/admin', async (c) => {
   const users = (await db.prepare(`SELECT ${USER_COLS} FROM users ORDER BY role DESC, display_name`).all<User>()).results
 
   return c.html(
-    <Layout title="Settings" user={c.get('user')} {...flash(c)}>
+    <Layout title="Settings" user={c.get('user')} kids={c.get('navKids')} active="settings" {...flash(c)}>
       <h1>Settings <span>· allowance, interest &amp; accounts</span></h1>
 
       <div class="card">
@@ -417,7 +406,7 @@ app.post('/admin/users/:id', async (c) => {
 app.get('/me', (c) => {
   const user = c.get('user')!
   return c.html(
-    <Layout title="My profile" user={user} {...flash(c)}>
+    <Layout title="My profile" user={user} kids={c.get('navKids')} active="me" {...flash(c)}>
       <h1>My profile <span>· name, photo &amp; password</span></h1>
       <div class="card">
         <form class="stack" method="post" action="/me">

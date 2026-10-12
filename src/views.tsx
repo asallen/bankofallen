@@ -137,6 +137,52 @@ button.primary:hover { background: var(--brand-hover); }
 .login { max-width: 420px; margin: 8vh auto 0; padding: 32px; background: var(--login-bg); backdrop-filter: blur(12px); }
 .login h1 { text-align: center; font-size: 1.9rem; }
 .page-glow { position: absolute; inset: 0 0 auto; height: 720px; z-index: 0; pointer-events: none; background: var(--page-glow); }
+
+/* ---- app shell: sidebar on desktop, compact top bar on phones ---- */
+.shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+.side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 4px; padding: 16px 12px;
+  background: var(--card); border-right: 1px solid var(--line); overflow-y: auto; z-index: 2; }
+.side .logo { padding: 6px 10px 18px; margin: 0 -12px 12px; padding-left: 22px; border-bottom: 1px solid var(--line); }
+.side-nav { display: flex; flex-direction: column; gap: 2px; }
+.side-link { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; color: var(--soft-text);
+  font: inherit; font-size: .95rem; background: none; border: 0; width: 100%; text-align: left; cursor: pointer; white-space: nowrap; }
+.side-link:hover { background: var(--raised); color: var(--text); }
+.side-link.active { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+.side-link.active svg { color: var(--brand); }
+.side-link svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
+.side-link .avatar { margin: 0 -2px; }
+.side-label { color: var(--muted); font-size: .82rem; padding: 18px 10px 6px; }
+.side-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+.content { padding: 36px 40px 72px; max-width: 1000px; width: 100%; position: relative; z-index: 1; }
+
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin: -8px 0 24px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: .95rem; padding: 9px 18px; border-radius: 32px;
+  border: 0; cursor: pointer; background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); transition: background .15s; }
+.pill:hover { background: var(--raised-hover); color: var(--text); }
+.pill.primary { background: var(--brand); color: var(--brand-ink); box-shadow: none; }
+.pill.primary:hover { background: var(--brand-hover); color: var(--brand-ink); }
+.pill svg { width: 16px; height: 16px; }
+
+dialog { border: 1px solid var(--line); border-radius: 16px; padding: 28px; width: min(440px, calc(100% - 32px));
+  background: var(--card); color: var(--text); box-shadow: 0 24px 60px -12px rgba(15, 15, 30, .35); }
+dialog::backdrop { background: rgba(15, 15, 25, .45); backdrop-filter: blur(3px); }
+dialog h2 { font-size: 1.25rem; margin-bottom: 20px; }
+.dialog-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+
+@media (max-width: 900px) {
+  .shell { display: block; }
+  .side { position: static; height: auto; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px;
+    padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .side .logo { padding: 4px 0; margin: 0; border: 0; }
+  .side-nav { grid-column: 1 / -1; flex-direction: row; overflow-x: auto; gap: 4px; margin: 0 -4px; }
+  .side-link { width: auto; padding: 7px 12px; font-size: .9rem; }
+  .side-label, .side-link.kid { display: none; }
+  .side-foot { margin: 0; padding: 0; border: 0; grid-column: 2; grid-row: 1; }
+  .side-foot .side-link { padding: 6px 12px; background: var(--raised); border-radius: 32px; font-size: .85rem; }
+  .side-foot svg { display: none; }
+  .content { padding: 24px 16px 64px; }
+}
+
 @media (max-width: 600px) {
   h1 { font-size: 1.7rem; }
   .hero .bal { font-size: 2.7rem; }
@@ -147,8 +193,49 @@ button.primary:hover { background: var(--brand-hover); }
 }
 `
 
-export function Layout(props: { title: string; user?: User | null; msg?: string; err?: string; children: Child }) {
+export type NavKid = Pick<User, 'id' | 'display_name' | 'has_photo' | 'photo_v'>
+
+type LayoutProps = {
+  title: string
+  user?: User | null
+  kids?: NavKid[]
+  active?: string // 'home' | 'settings' | 'me' | `kid:${id}`
+  msg?: string
+  err?: string
+  children: Child
+}
+
+function Sidebar({ user, kids = [], active }: { user: User; kids?: NavKid[]; active?: string }) {
+  const link = (key: string) => `side-link${active === key ? ' active' : ''}`
+  return (
+    <aside class="side">
+      <a class="logo" href="/"><LogoMark />Bank of Allen</a>
+      <nav class="side-nav">
+        <a class={link('home')} href="/"><Icon name="home" />Home</a>
+        {user.role === 'parent' && kids.length > 0 && <div class="side-label">Accounts</div>}
+        {user.role === 'parent' &&
+          kids.map((k) => (
+            <a class={`${link(`kid:${k.id}`)} kid`} href={`/kid/${k.id}`}><Avatar user={k} size={22} />{k.display_name}</a>
+          ))}
+        {user.role === 'parent' && <div class="side-label">Bank</div>}
+        {user.role === 'parent' && <a class={link('settings')} href="/admin"><Icon name="settings" />Settings</a>}
+        <a class={link('me')} href="/me"><Icon name="user" />My profile</a>
+      </nav>
+      <form class="side-foot" method="post" action="/logout">
+        <button class="side-link"><Icon name="logout" />Log out</button>
+      </form>
+    </aside>
+  )
+}
+
+export function Layout(props: LayoutProps) {
   const u = props.user
+  const flash = (
+    <>
+      {props.msg && <div class="msg">{props.msg}</div>}
+      {props.err && <div class="msg err">{props.err}</div>}
+    </>
+  )
   return (
     <html lang="en">
       <head>
@@ -164,27 +251,28 @@ export function Layout(props: { title: string; user?: User | null; msg?: string;
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
       </head>
       <body>
-        {!u && <div class="page-glow" />}
-        <header>
-          <div class="wrap">
-            <a class="logo" href="/"><LogoMark />Bank of Allen</a>
-            {u && (
-              <nav>
-                <a href="/">Home</a>
-                {u.role === 'parent' && <a href="/admin">Settings</a>}
-                <a href="/me">My profile</a>
-                <form method="post" action="/logout" style="margin:0">
-                  <button>Log out</button>
-                </form>
-              </nav>
-            )}
+        {u ? (
+          <div class="shell">
+            <Sidebar user={u} kids={props.kids} active={props.active} />
+            <main class="content">
+              {flash}
+              {props.children}
+            </main>
           </div>
-        </header>
-        <main class="wrap">
-          {props.msg && <div class="msg">{props.msg}</div>}
-          {props.err && <div class="msg err">{props.err}</div>}
-          {props.children}
-        </main>
+        ) : (
+          <>
+            <div class="page-glow" />
+            <header>
+              <div class="wrap">
+                <a class="logo" href="/"><LogoMark />Bank of Allen</a>
+              </div>
+            </header>
+            <main class="wrap">
+              {flash}
+              {props.children}
+            </main>
+          </>
+        )}
       </body>
     </html>
   )
@@ -209,6 +297,23 @@ function LogoMark() {
         <circle cx="16" cy="13.5" r="6.5" />
         <circle cx="16" cy="11.5" r="3.5" />
       </g>
+    </svg>
+  )
+}
+
+const ICON_PATHS: Record<string, string> = {
+  home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
+  settings: 'M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+  logout: 'M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l-4-4 4-4M6 12h10',
+  deposit: 'M12 5v14M5 12h14',
+  debit: 'M5 12h14',
+}
+
+export function Icon({ name }: { name: keyof typeof ICON_PATHS }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d={ICON_PATHS[name]} />
     </svg>
   )
 }
@@ -288,6 +393,57 @@ export function BalanceChart({ txs }: { txs: Tx[] }) {
     </svg>
   )
 }
+
+/** Deposit / Debit pill buttons. Pass `kidId` to preselect that account in the dialog. */
+export function TxActions({ kidId }: { kidId?: number }) {
+  return (
+    <div class="actions">
+      <button type="button" class="pill primary" data-tx="deposit" data-kid={kidId ? String(kidId) : undefined}><Icon name="deposit" />Deposit</button>
+      <button type="button" class="pill" data-tx="debit" data-kid={kidId ? String(kidId) : undefined}><Icon name="debit" />Debit</button>
+    </div>
+  )
+}
+
+/** The transaction form, shown in a dialog when a TxActions button is clicked. */
+export function TxDialog({ kids, back }: { kids: NavKid[]; back: string }) {
+  return (
+    <dialog id="tx-dialog">
+      <h2>New transaction</h2>
+      <form class="stack" method="post" action="/tx">
+        <input type="hidden" name="back" value={back} />
+        <div class="toggle">
+          <label><input type="radio" name="kind" value="deposit" checked />Deposit</label>
+          <label><input type="radio" name="kind" value="debit" />Debit</label>
+        </div>
+        <label>Account
+          <select name="kid_id" required>
+            {kids.map((k) => <option value={String(k.id)}>{k.display_name}</option>)}
+          </select>
+        </label>
+        <label>Amount<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
+        <label>What for?<input name="memo" maxlength={100} placeholder="e.g. Birthday money, LEGO set" /></label>
+        <div class="dialog-buttons">
+          <button type="button" class="pill" onclick="this.closest('dialog').close()">Cancel</button>
+          <button class="primary">Save</button>
+        </div>
+      </form>
+      <script dangerouslySetInnerHTML={{ __html: TX_SCRIPT }} />
+    </dialog>
+  )
+}
+
+const TX_SCRIPT = `
+(() => {
+  const d = document.getElementById('tx-dialog');
+  document.querySelectorAll('[data-tx]').forEach((b) => b.addEventListener('click', () => {
+    d.querySelector('input[name=kind][value=' + b.dataset.tx + ']').checked = true;
+    if (b.dataset.kid) d.querySelector('select[name=kid_id]').value = b.dataset.kid;
+    d.showModal();
+    d.querySelector('input[name=amount]').focus();
+  }));
+  d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
+})();
+`
 
 export function DaySelect({ name, value }: { name: string; value: number }) {
   return (
