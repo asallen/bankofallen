@@ -1,10 +1,11 @@
 import { Hono, type Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import {
-  addDays, catchUp, DAYS, getSettings, hashPassword, localDate, money, newToken, nextAllowanceDate,
-  parseCents, prettyDate, USER_COLS, verifyPassword, type Tx, type User,
+  addDays, afterFailure, catchUp, DAYS, getSettings, hashPassword, isValidDate, localDate, lockedMinutes, money,
+  newToken, nextAllowanceDate, parseCents, parseLoginState, prettyDate, USER_COLS, verifyPassword, type Tx, type User,
 } from './lib'
-import { Avatar, BalanceChart, DaySelect, Layout, Money, PHOTO_SCRIPT, TxActions, TxDialog, TxTable, type NavKid } from './views'
+import { HelpContent } from './help'
+import { Avatar, BalanceChart, DaySelect, EditTxDialog, Layout, Money, PHOTO_SCRIPT, TxActions, TxDialog, TxTable, type NavKid } from './views'
 
 type Env = { Bindings: { DB: D1Database }; Variables: { user: User | null; navKids: NavKid[] } }
 type C = Context<Env>
@@ -132,13 +133,30 @@ app.get('/login', (c) => {
 })
 
 app.post('/login', async (c) => {
+  const db = c.env.DB
   const b = await c.req.parseBody()
-  const row = await c.env.DB.prepare('SELECT id, password_hash FROM users WHERE username = ?')
-    .bind(field(b, 'username').toLowerCase())
+  const username = field(b, 'username').toLowerCase()
+  if (!/^[a-z0-9_-]{1,30}$/.test(username)) return back(c, '/login', 'err', 'Wrong username or password.')
+
+  // After 5 wrong passwords, the username is locked for 15 minutes.
+  const key = `login:${username}`
+  const now = new Date()
+  const stored = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first<{ value: string }>()
+  const state = parseLoginState(stored?.value)
+  const wait = lockedMinutes(state, now)
+  if (wait > 0) return back(c, '/login', 'err', `Too many wrong tries. Try again in ${wait} minute${wait === 1 ? '' : 's'}.`)
+
+  const row = await db.prepare('SELECT id, password_hash FROM users WHERE username = ?')
+    .bind(username)
     .first<{ id: number; password_hash: string }>()
   if (!row || !(await verifyPassword(field(b, 'password'), row.password_hash))) {
-    return back(c, '/login', 'err', 'Wrong username or password.')
+    const next = afterFailure(state, now)
+    await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, `${next.failures}|${next.lockedUntil}`).run()
+    return back(c, '/login', 'err', next.lockedUntil
+      ? 'Too many wrong tries. Try again in 15 minutes.'
+      : 'Wrong username or password.')
   }
+  if (stored) await db.prepare('DELETE FROM settings WHERE key = ?').bind(key).run()
   await startSession(c, row.id)
   return c.redirect('/')
 })
@@ -162,12 +180,14 @@ app.get('/', async (c) => {
     await db.prepare('SELECT * FROM transactions ORDER BY date DESC, id DESC LIMIT 30').all<Tx>()
   ).results
   const names = new Map(all.map((k) => [k.id, k.display_name]))
+  const today = localDate((await getSettings(db))!.timezone)
 
   return c.html(
     <Layout title="Home" user={user} kids={c.get('navKids')} active="home" {...flash(c)}>
       <h1>Welcome, {user.display_name}</h1>
       {all.length > 0 && <TxActions />}
-      {all.length > 0 && <TxDialog kids={all} back="/" />}
+      {all.length > 0 && <TxDialog kids={all} back="/" today={today} />}
+      <EditTxDialog back="/" today={today} />
       {all.length === 0 && <p class="card">No kid accounts yet. <a href="/admin">Add one in Settings</a>.</p>}
       {all.length > 0 && (
         <div class="card hero">
@@ -191,7 +211,7 @@ app.get('/', async (c) => {
 
       <div class="card">
         <h2>Recent activity</h2>
-        <TxTable txs={recent} names={names} />
+        <TxTable txs={recent} names={names} editable />
       </div>
     </Layout>,
   )
@@ -221,7 +241,8 @@ async function kidPage(c: C, kidId: number) {
     <Layout title={kid.display_name} user={viewer} kids={c.get('navKids')} active={isMe ? 'home' : `kid:${kid.id}`} {...flash(c)}>
       <h1>{isMe ? `Welcome, ${kid.display_name}` : kid.display_name}</h1>
       {viewer.role === 'parent' && <TxActions kidId={kid.id} />}
-      {viewer.role === 'parent' && <TxDialog kids={c.get('navKids')} back={`/kid/${kid.id}`} />}
+      {viewer.role === 'parent' && <TxDialog kids={c.get('navKids')} back={`/kid/${kid.id}`} today={today} />}
+      {viewer.role === 'parent' && <EditTxDialog back={`/kid/${kid.id}`} today={today} />}
       <div class="card hero">
         <div style="display:flex;align-items:center;gap:12px">
           <Avatar user={kid} size={36} />
@@ -252,7 +273,7 @@ async function kidPage(c: C, kidId: number) {
 
       <div class="card">
         <h2>History</h2>
-        <TxTable txs={[...txs].reverse()} />
+        <TxTable txs={[...txs].reverse()} editable={viewer.role === 'parent'} />
       </div>
     </Layout>,
   )
@@ -268,19 +289,71 @@ app.post('/tx', async (c) => {
   const cents = parseCents(b.amount)
   const kind = b.kind === 'debit' ? 'debit' : 'deposit'
   const memo = field(b, 'memo').slice(0, 100)
-  const to = /^\/(kid\/\d+)?$/.test(field(b, 'back')) ? field(b, 'back') : '/'
+  const to = backTo(b)
   const kid = (await kids(db)).find((k) => k.id === kidId)
   if (!kid) return back(c, to, 'err', 'Pick an account.')
   if (!cents) return back(c, to, 'err', 'Enter an amount greater than $0.')
   if (kind === 'debit' && cents > kid.balance) {
     return back(c, to, 'err', `${kid.display_name} only has ${money(kid.balance)}.`)
   }
-  const s = (await getSettings(db))!
+  const today = localDate((await getSettings(db))!.timezone)
+  const date = field(b, 'date') || today
+  if (!isValidDate(date) || date > today) return back(c, to, 'err', 'Pick a real date that isn’t in the future.')
   await db
     .prepare('INSERT INTO transactions (kid_id, amount_cents, type, memo, date, created_by) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(kidId, kind === 'debit' ? -cents : cents, kind, memo, localDate(s.timezone), c.get('user')!.id)
+    .bind(kidId, kind === 'debit' ? -cents : cents, kind, memo, date, c.get('user')!.id)
     .run()
   return back(c, to, 'msg', `${kind === 'debit' ? 'Took' : 'Added'} ${money(cents)} ${kind === 'debit' ? 'from' : 'to'} ${kid.display_name}'s account.`)
+})
+
+/** Where to send a parent after a transaction change: the page they came from. */
+function backTo(b: Record<string, unknown>): string {
+  const to = field(b, 'back')
+  return /^\/(kid\/\d+)?$/.test(to) ? to : '/'
+}
+
+async function balanceOf(db: D1Database, kidId: number): Promise<number> {
+  const r = await db.prepare('SELECT COALESCE(SUM(amount_cents), 0) AS total FROM transactions WHERE kid_id = ?').bind(kidId).first<{ total: number }>()
+  return r?.total ?? 0
+}
+
+app.post('/tx/:id', async (c) => {
+  if (!isParent(c)) return c.redirect('/')
+  const db = c.env.DB
+  const b = await c.req.parseBody()
+  const to = backTo(b)
+  const tx = await db.prepare('SELECT * FROM transactions WHERE id = ?').bind(Number(c.req.param('id'))).first<Tx>()
+  if (!tx) return back(c, to, 'err', 'That transaction no longer exists.')
+
+  const cents = parseCents(b.amount)
+  if (!cents) return back(c, to, 'err', 'Enter an amount greater than $0.')
+  const today = localDate((await getSettings(db))!.timezone)
+  const date = field(b, 'date')
+  if (!isValidDate(date) || date > today) return back(c, to, 'err', 'Pick a real date that isn’t in the future.')
+  // Deposits and debits can be switched; allowance and interest keep their type.
+  const type = tx.type === 'deposit' || tx.type === 'debit' ? (b.kind === 'debit' ? 'debit' : 'deposit') : tx.type
+  const amount = type === 'debit' ? -cents : cents
+  const newBalance = (await balanceOf(db, tx.kid_id)) - tx.amount_cents + amount
+  if (newBalance < 0) return back(c, to, 'err', `That would leave the account at ${money(newBalance)}.`)
+
+  await db.prepare('UPDATE transactions SET amount_cents = ?, type = ?, memo = ?, date = ? WHERE id = ?')
+    .bind(amount, type, field(b, 'memo').slice(0, 100), date, tx.id)
+    .run()
+  return back(c, to, 'msg', 'Transaction updated.')
+})
+
+app.post('/tx/:id/delete', async (c) => {
+  if (!isParent(c)) return c.redirect('/')
+  const db = c.env.DB
+  const to = backTo(await c.req.parseBody())
+  const tx = await db.prepare('SELECT * FROM transactions WHERE id = ?').bind(Number(c.req.param('id'))).first<Tx>()
+  if (!tx) return back(c, to, 'err', 'That transaction no longer exists.')
+  const newBalance = (await balanceOf(db, tx.kid_id)) - tx.amount_cents
+  if (newBalance < 0) return back(c, to, 'err', `Deleting that would leave the account at ${money(newBalance)}.`)
+  // Keep the key's row gone for good: allowance/interest for that day won't be re-paid,
+  // because catch-up only looks at days after the last processed date.
+  await db.prepare('DELETE FROM transactions WHERE id = ?').bind(tx.id).run()
+  return back(c, to, 'msg', 'Transaction deleted.')
 })
 
 // ---------- parent settings ----------
@@ -399,6 +472,37 @@ app.post('/admin/users/:id', async (c) => {
     ])
   }
   return back(c, '/admin', 'msg', 'Saved.')
+})
+
+// ---------- help (parents) ----------
+
+app.get('/help', async (c) => {
+  if (!isParent(c)) return c.redirect('/')
+  const db = c.env.DB
+  const s = (await getSettings(db))!
+  const kids = (
+    await db.prepare("SELECT display_name, username, allowance_cents, allowance_day FROM users WHERE role = 'kid' ORDER BY display_name")
+      .all<{ display_name: string; username: string; allowance_cents: number; allowance_day: number }>()
+  ).results
+  const counts = await db
+    .prepare("SELECT (SELECT COUNT(*) FROM users WHERE role = 'parent') AS parents, COUNT(*) AS transactions, MIN(date) AS first FROM transactions")
+    .first<{ parents: number; transactions: number; first: string | null }>()
+  return c.html(
+    <Layout title="Help" user={c.get('user')} kids={c.get('navKids')} active="help">
+      <HelpContent
+        status={{
+          origin: new URL(c.req.url).origin,
+          timezone: s.timezone,
+          interestRateBps: s.interest_rate_bps,
+          lastProcessed: s.last_processed_date,
+          kids,
+          parents: counts?.parents ?? 0,
+          transactions: counts?.transactions ?? 0,
+          firstDate: counts?.first ?? null,
+        }}
+      />
+    </Layout>,
+  )
 })
 
 // ---------- my profile (everyone) ----------

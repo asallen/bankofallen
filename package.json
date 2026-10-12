@@ -6,7 +6,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:init": "wrangler d1 execute bankofallen --remote --file=schema.sql",
-    "db:init:local": "wrangler d1 execute bankofallen --local --file=schema.sql"
+    "db:init:local": "wrangler d1 execute bankofallen --local --file=schema.sql",
+    "test": "vitest run",
+    "reset-password": "node scripts/reset-password.ts"
   },
   "dependencies": {
     "hono": "^4.13.13"
@@ -14,6 +16,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261012.1",
     "typescript": "^7.0.2",
+    "vitest": "^5.0.3",
     "wrangler": "^4.149.0"
   }
 }

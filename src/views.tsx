@@ -167,7 +167,36 @@ dialog { border: 1px solid var(--line); border-radius: 16px; padding: 28px; widt
   background: var(--card); color: var(--text); box-shadow: 0 24px 60px -12px rgba(15, 15, 30, .35); }
 dialog::backdrop { background: rgba(15, 15, 25, .45); backdrop-filter: blur(3px); }
 dialog h2 { font-size: 1.25rem; margin-bottom: 20px; }
-.dialog-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+.dialog-buttons { display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
+.pill.danger { color: var(--err); background: none; box-shadow: none; padding-left: 4px; padding-right: 4px; }
+.pill.danger:hover { background: none; text-decoration: underline; }
+[hidden] { display: none !important; }
+td.edit { width: 1%; padding-left: 0; }
+.icon-btn { display: inline-grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; cursor: pointer;
+  background: none; color: var(--muted); }
+.icon-btn:hover { background: var(--raised-hover); color: var(--text); }
+.icon-btn svg { width: 16px; height: 16px; }
+/* ---- help page ---- */
+.help-toc { display: flex; flex-wrap: wrap; gap: 6px; margin: -8px 0 20px; }
+.help-toc a { font-size: .85rem; color: var(--soft-text); background: var(--card); box-shadow: inset 0 0 0 1px var(--line); padding: 5px 12px; border-radius: 32px; }
+.help-toc a:hover { color: var(--text); background: var(--raised); }
+.help { scroll-margin-top: 16px; }
+.help h2 { font-size: 1.1rem; }
+.help p, .help ul { margin: 0 0 14px; color: var(--soft-text); }
+.help ul { padding-left: 20px; }
+.help li { margin-bottom: 8px; }
+.help strong { color: var(--text); font-weight: 500; }
+.help > :last-child { margin-bottom: 0; }
+code { font: .85em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--raised); padding: 1px 5px; border-radius: 4px; }
+.cmd { display: flex; align-items: center; gap: 8px; background: var(--raised); border-radius: 8px; padding: 8px 8px 8px 14px; margin: 0 0 14px; }
+.cmd code { flex: 1; min-width: 0; background: none; padding: 0; overflow-x: auto; white-space: nowrap; }
+.cmd .copy { width: auto; padding: 0 10px; font: inherit; font-size: .8rem; flex: none; }
+.warn { background: var(--err-bg); color: var(--err) !important; padding: 10px 14px; border-radius: 8px; font-size: .9rem; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 10px 24px; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+@media (max-width: 600px) { .facts { grid-template-columns: 1fr; gap: 2px; } .facts dd { margin-bottom: 10px; } }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 @media (max-width: 900px) {
   .shell { display: block; }
@@ -199,7 +228,7 @@ type LayoutProps = {
   title: string
   user?: User | null
   kids?: NavKid[]
-  active?: string // 'home' | 'settings' | 'me' | `kid:${id}`
+  active?: string // 'home' | 'settings' | 'help' | 'me' | `kid:${id}`
   msg?: string
   err?: string
   children: Child
@@ -219,6 +248,7 @@ function Sidebar({ user, kids = [], active }: { user: User; kids?: NavKid[]; act
           ))}
         {user.role === 'parent' && <div class="side-label">Bank</div>}
         {user.role === 'parent' && <a class={link('settings')} href="/admin"><Icon name="settings" />Settings</a>}
+        {user.role === 'parent' && <a class={link('help')} href="/help"><Icon name="help" />Help</a>}
         <a class={link('me')} href="/me"><Icon name="user" />My profile</a>
       </nav>
       <form class="side-foot" method="post" action="/logout">
@@ -308,6 +338,8 @@ const ICON_PATHS: Record<string, string> = {
   logout: 'M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l-4-4 4-4M6 12h10',
   deposit: 'M12 5v14M5 12h14',
   debit: 'M5 12h14',
+  edit: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
+  help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01',
 }
 
 export function Icon({ name }: { name: keyof typeof ICON_PATHS }) {
@@ -331,7 +363,7 @@ export function Amount({ cents }: { cents: number }) {
 
 const LABELS: Record<Tx['type'], string> = { deposit: 'Deposit', debit: 'Debit', allowance: 'Allowance', interest: 'Interest' }
 
-export function TxTable({ txs, names }: { txs: Tx[]; names?: Map<number, string> }) {
+export function TxTable({ txs, names, editable }: { txs: Tx[]; names?: Map<number, string>; editable?: boolean }) {
   if (txs.length === 0) return <p class="muted">No activity yet.</p>
   return (
     <div class="table">
@@ -342,6 +374,7 @@ export function TxTable({ txs, names }: { txs: Tx[]; names?: Map<number, string>
           {names && <th>Who</th>}
           <th>Description</th>
           <th style="text-align:right">Amount</th>
+          {editable && <th><span class="sr">Edit</span></th>}
         </tr>
       </thead>
       <tbody>
@@ -354,6 +387,15 @@ export function TxTable({ txs, names }: { txs: Tx[]; names?: Map<number, string>
               <span class={`badge ${t.type}`}>{LABELS[t.type]}</span>
             </td>
             <td class="amt"><Amount cents={t.amount_cents} /></td>
+            {editable && (
+              <td class="edit">
+                <button type="button" class="icon-btn" title="Edit" aria-label="Edit transaction"
+                  data-edit={String(t.id)} data-type={t.type} data-amount={(Math.abs(t.amount_cents) / 100).toFixed(2)}
+                  data-memo={t.memo} data-date={t.date}>
+                  <Icon name="edit" />
+                </button>
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -405,7 +447,7 @@ export function TxActions({ kidId }: { kidId?: number }) {
 }
 
 /** The transaction form, shown in a dialog when a TxActions button is clicked. */
-export function TxDialog({ kids, back }: { kids: NavKid[]; back: string }) {
+export function TxDialog({ kids, back, today }: { kids: NavKid[]; back: string; today: string }) {
   return (
     <dialog id="tx-dialog">
       <h2>New transaction</h2>
@@ -420,7 +462,10 @@ export function TxDialog({ kids, back }: { kids: NavKid[]; back: string }) {
             {kids.map((k) => <option value={String(k.id)}>{k.display_name}</option>)}
           </select>
         </label>
-        <label>Amount<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
+        <div class="row">
+          <label>Amount<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
+          <label>Date<input name="date" type="date" value={today} max={today} required /></label>
+        </div>
         <label>What for?<input name="memo" maxlength={100} placeholder="e.g. Birthday money, LEGO set" /></label>
         <div class="dialog-buttons">
           <button type="button" class="pill" onclick="this.closest('dialog').close()">Cancel</button>
@@ -431,6 +476,57 @@ export function TxDialog({ kids, back }: { kids: NavKid[]; back: string }) {
     </dialog>
   )
 }
+
+/** Edit or delete an existing transaction. Filled in from the row's Edit button. */
+export function EditTxDialog({ back, today }: { back: string; today: string }) {
+  return (
+    <dialog id="edit-dialog">
+      <h2>Edit transaction</h2>
+      <form class="stack" method="post">
+        <input type="hidden" name="back" value={back} />
+        <div class="toggle" data-kind-toggle>
+          <label><input type="radio" name="kind" value="deposit" />Deposit</label>
+          <label><input type="radio" name="kind" value="debit" />Debit</label>
+        </div>
+        <p class="muted sm" data-auto-note style="margin:0">Automatic <span data-type-name></span> payment.</p>
+        <div class="row">
+          <label>Amount<input name="amount" inputmode="decimal" required /></label>
+          <label>Date<input name="date" type="date" max={today} required /></label>
+        </div>
+        <label>What for?<input name="memo" maxlength={100} /></label>
+        <div class="dialog-buttons">
+          <button type="submit" class="pill danger" data-delete formnovalidate
+            onclick="return confirm('Delete this transaction? This can’t be undone.')">Delete</button>
+          <span style="flex:1" />
+          <button type="button" class="pill" onclick="this.closest('dialog').close()">Cancel</button>
+          <button class="primary">Save</button>
+        </div>
+      </form>
+      <script dangerouslySetInnerHTML={{ __html: EDIT_SCRIPT }} />
+    </dialog>
+  )
+}
+
+const EDIT_SCRIPT = `
+(() => {
+  const d = document.getElementById('edit-dialog'), f = d.querySelector('form');
+  // Delegated: the table rows come after this script in the page.
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-edit]');
+    if (!b) return;
+    const t = b.dataset, manual = t.type === 'deposit' || t.type === 'debit';
+    f.action = '/tx/' + t.edit;
+    d.querySelector('[data-delete]').formAction = '/tx/' + t.edit + '/delete';
+    d.querySelector('[data-kind-toggle]').hidden = !manual;
+    d.querySelector('[data-auto-note]').hidden = manual;
+    d.querySelector('[data-type-name]').textContent = t.type;
+    if (manual) f.querySelector('input[name=kind][value=' + t.type + ']').checked = true;
+    f.amount.value = t.amount; f.date.value = t.date; f.memo.value = t.memo || '';
+    d.showModal();
+  });
+  d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
+})();
+`
 
 const TX_SCRIPT = `
 (() => {

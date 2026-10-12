@@ -114,11 +114,61 @@ export function newToken(): string {
 
 // ---------- catch-up: pay any allowance & interest due since the app was last opened ----------
 
+export type PlannedTx = {
+  kid_id: number
+  amount_cents: number
+  type: 'allowance' | 'interest'
+  memo: string
+  date: string
+  key: string
+}
+
+type KidSchedule = Pick<User, 'id' | 'allowance_cents' | 'allowance_day'>
+
 /**
- * Walks each day from the last processed date up to today and inserts the
- * allowance and interest transactions that should have happened, dated on
- * the day they were due. Runs at the start of every request; it's a single
- * settings read when there's nothing to do.
+ * Works out every allowance and interest payment due on the days after
+ * `last` up to and including `today`, in order. `balances` are each kid's
+ * balance at the end of `last`. Pure, so it can be unit tested.
+ *
+ * Interest is paid on the 1st: end-of-last-month balance × yearly rate ÷ 12,
+ * rounded to the cent. It is paid before that day's allowance.
+ */
+export function planCatchUp(opts: {
+  last: string
+  today: string
+  kids: KidSchedule[]
+  balances: Map<number, number>
+  interestRateBps: number
+}): PlannedTx[] {
+  const { last, today, kids, interestRateBps: bps } = opts
+  const balance = new Map(kids.map((k) => [k.id, opts.balances.get(k.id) ?? 0]))
+  const planned: PlannedTx[] = []
+  const add = (t: PlannedTx) => {
+    planned.push(t)
+    balance.set(t.kid_id, (balance.get(t.kid_id) ?? 0) + t.amount_cents)
+  }
+
+  for (let d = addDays(last, 1); d <= today; d = addDays(d, 1)) {
+    if (d.endsWith('-01') && bps > 0) {
+      const month = new Date(addDays(d, -1) + 'T00:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long' })
+      for (const k of kids) {
+        const interest = Math.round(((balance.get(k.id) ?? 0) * bps) / 10000 / 12)
+        if (interest <= 0) continue
+        add({ kid_id: k.id, amount_cents: interest, type: 'interest', memo: `Interest for ${month} (${bps / 100}% a year)`, date: d, key: `interest:${k.id}:${d.slice(0, 7)}` })
+      }
+    }
+    for (const k of kids) {
+      if (k.allowance_cents <= 0 || weekday(d) !== k.allowance_day) continue
+      add({ kid_id: k.id, amount_cents: k.allowance_cents, type: 'allowance', memo: 'Weekly allowance', date: d, key: `allowance:${k.id}:${d}` })
+    }
+  }
+  return planned
+}
+
+/**
+ * Inserts the allowance and interest transactions that came due since the
+ * app was last opened, dated on the day they were due. Runs at the start of
+ * every request; it's a single settings read when there's nothing to do.
  *
  * Safe to run concurrently or retry: every automatic transaction has a
  * unique key, so duplicates are ignored.
@@ -131,48 +181,60 @@ export async function catchUp(db: D1Database): Promise<void> {
   if (last >= today) return
 
   const kids = (
-    await db.prepare("SELECT id, allowance_cents, allowance_day FROM users WHERE role = 'kid'").all<User>()
+    await db.prepare("SELECT id, allowance_cents, allowance_day FROM users WHERE role = 'kid'").all<KidSchedule>()
   ).results
-
-  // Balances as of the last processed day; everything after that is computed here.
-  const balance = new Map<number, number>(kids.map((k) => [k.id, 0]))
   const sums = await db
     .prepare('SELECT kid_id, SUM(amount_cents) AS total FROM transactions WHERE date <= ? GROUP BY kid_id')
     .bind(last)
     .all<{ kid_id: number; total: number }>()
-  for (const r of sums.results) balance.set(r.kid_id, r.total)
+  const balances = new Map(sums.results.map((r) => [r.kid_id, r.total]))
 
   const insert = db.prepare(
     'INSERT OR IGNORE INTO transactions (kid_id, amount_cents, type, memo, date, key) VALUES (?, ?, ?, ?, ?, ?)',
   )
-  const stmts: D1PreparedStatement[] = []
-  const pct = s.interest_rate_bps / 100
-
-  for (let d = addDays(last, 1); d <= today; d = addDays(d, 1)) {
-    // Interest on the 1st, based on the balance at the end of last month.
-    if (d.endsWith('-01') && s.interest_rate_bps > 0) {
-      const month = new Date(addDays(d, -1) + 'T00:00:00Z').toLocaleDateString('en-US', {
-        timeZone: 'UTC',
-        month: 'long',
-      })
-      for (const k of kids) {
-        const bal = balance.get(k.id) ?? 0
-        const interest = Math.round((bal * s.interest_rate_bps) / 10000 / 12)
-        if (interest <= 0) continue
-        stmts.push(insert.bind(k.id, interest, 'interest', `Interest for ${month} (${pct}% a year)`, d, `interest:${k.id}:${d.slice(0, 7)}`))
-        balance.set(k.id, bal + interest)
-      }
-    }
-    // Weekly allowance.
-    for (const k of kids) {
-      if (k.allowance_cents <= 0 || weekday(d) !== k.allowance_day) continue
-      stmts.push(insert.bind(k.id, k.allowance_cents, 'allowance', 'Weekly allowance', d, `allowance:${k.id}:${d}`))
-      balance.set(k.id, (balance.get(k.id) ?? 0) + k.allowance_cents)
-    }
-  }
-
+  const stmts = planCatchUp({ last, today, kids, balances, interestRateBps: s.interest_rate_bps }).map((t) =>
+    insert.bind(t.kid_id, t.amount_cents, t.type, t.memo, t.date, t.key),
+  )
   stmts.push(
     db.prepare("UPDATE settings SET value = ? WHERE key = 'last_processed_date' AND value < ?").bind(today, today),
   )
   for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50))
+}
+
+// ---------- login throttling ----------
+
+export const MAX_LOGIN_FAILURES = 5
+export const LOCKOUT_MINUTES = 15
+
+/**
+ * Tracks failed logins per username in the settings table (key "login:<username>",
+ * value "<failures>|<locked until ISO time>"), so no extra table is needed.
+ */
+export type LoginState = { failures: number; lockedUntil: string }
+
+export function parseLoginState(value: string | null | undefined): LoginState {
+  const [failures, lockedUntil] = (value ?? '').split('|')
+  return { failures: Number(failures) || 0, lockedUntil: lockedUntil ?? '' }
+}
+
+/** Minutes left on a lockout, or 0 if not locked. */
+export function lockedMinutes(state: LoginState, now: Date): number {
+  const ms = Date.parse(state.lockedUntil) - now.getTime()
+  return ms > 0 ? Math.ceil(ms / 60000) : 0
+}
+
+/** The state after one more failed attempt. */
+export function afterFailure(state: LoginState, now: Date): LoginState {
+  const failures = (lockedMinutes(state, now) > 0 ? 0 : state.failures) + 1
+  if (failures >= MAX_LOGIN_FAILURES) {
+    return { failures: 0, lockedUntil: new Date(now.getTime() + LOCKOUT_MINUTES * 60000).toISOString() }
+  }
+  return { failures, lockedUntil: '' }
+}
+
+// ---------- validation ----------
+
+/** True for a real calendar date written as YYYY-MM-DD. */
+export function isValidDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && addDays(value, 0) === value
 }
