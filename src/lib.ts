@@ -201,6 +201,24 @@ export async function catchUp(db: D1Database): Promise<void> {
   for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50))
 }
 
+// ---------- cash breakdown ----------
+
+export const BILLS = [10000, 5000, 2000, 1000, 500, 100]
+export const COINS = [25, 10, 5, 1]
+
+/** The fewest US bills and coins that make `cents`, as [value in cents, count] pairs. */
+export function cashBreakdown(cents: number): { bills: [number, number][]; coins: [number, number][] } {
+  let left = Math.max(0, Math.round(cents))
+  const take = (values: number[]) =>
+    values.flatMap((v): [number, number][] => {
+      const n = Math.floor(left / v)
+      left -= n * v
+      return n > 0 ? [[v, n]] : []
+    })
+  const bills = take(BILLS)
+  return { bills, coins: take(COINS) }
+}
+
 // ---------- savings chart & streak ----------
 
 type Dated = { amount_cents: number; date: string; type?: string }

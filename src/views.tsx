@@ -1,5 +1,5 @@
 import type { Child } from 'hono/jsx'
-import { addDays, DAYS, money, prettyDate, savingsSeries, type Tx, type User } from './lib'
+import { addDays, cashBreakdown, DAYS, money, prettyDate, savingsSeries, type Tx, type User } from './lib'
 
 const CSS = `
 :root {
@@ -20,6 +20,7 @@ const CSS = `
   --b-interest: #11734a; --b-interest-bg: #e2f5eb; --b-allowance: #4256dc; --b-allowance-bg: #eceefe;
   --b-deposit: #3a4570; --b-deposit-bg: #eaf0ff;
   --chart-saved: #5266eb; --chart-interest: #4cbb86;
+  --bill-bg: #e5f3e9; --bill-ink: #2f6b4a; --coin-bg: #ececf2; --coin-ink: #626580; --penny-bg: #f3d3b8; --penny-ink: #8f5228;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -40,6 +41,7 @@ const CSS = `
     --b-interest: #9fe3bf; --b-interest-bg: rgba(127, 209, 166, .12); --b-allowance: #a9b4ff; --b-allowance-bg: rgba(82, 102, 235, .18);
     --b-deposit: #cdddff; --b-deposit-bg: rgba(205, 221, 255, .1);
     --chart-saved: #6274f0; --chart-interest: #3fae7c;
+    --bill-bg: #1d3528; --bill-ink: #8fd3ac; --coin-bg: #34364a; --coin-ink: #c3c5d9; --penny-bg: #4f3424; --penny-ink: #e9b48d;
   }
 }
 * { box-sizing: border-box; }
@@ -92,6 +94,17 @@ h2 { font-size: .95rem; font-weight: 500; margin: 0 0 16px; }
   color: var(--b-allowance); background: var(--b-allowance-bg); white-space: nowrap; }
 .streak svg { width: 14px; height: 14px; }
 .from-interest { color: var(--in); font-size: .9rem; }
+.cash { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cash-item { display: inline-flex; align-items: center; gap: 4px; }
+.cash-item svg { display: block; overflow: visible; }
+.cash.lg .cash-n { font-size: .9rem; }
+.cash-n { font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bal-row { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; }
+.bal-row .cash { justify-content: flex-end; }
+.stat .cash { margin-top: 10px; }
+.rate-pic { margin-top: 10px; color: var(--muted); font-size: .78rem; }
+.rate-pic .pics { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.rate-pic .cash { margin: 0; }
 
 .list { margin: 20px -24px -24px; }
 .list-head { display: flex; justify-content: space-between; padding: 0 24px 10px; color: var(--muted); font-size: .8rem; border-bottom: 1px solid var(--line); }
@@ -223,6 +236,7 @@ code { font: .85em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: va
 }
 
 @media (max-width: 600px) {
+  .bal-row .cash { justify-content: flex-start; }
   h1 { font-size: 1.7rem; }
   .hero .bal { font-size: 2.7rem; }
   .card { padding: 20px; } .table { margin: 0 -20px -8px; } .list { margin: 16px -20px -20px; }
@@ -415,6 +429,85 @@ export function TxTable({ txs, names, editable }: { txs: Tx[]; names?: Map<numbe
   )
 }
 
+const COIN_NAMES: Record<number, [string, string]> = { 25: ['quarter', 'quarters'], 10: ['dime', 'dimes'], 5: ['nickel', 'nickels'], 1: ['penny', 'pennies'] }
+const COIN_R: Record<number, number> = { 25: 12, 10: 9.5, 5: 11, 1: 10 }
+
+function Bill({ cents }: { cents: number }) {
+  return (
+    <g>
+      <rect x=".75" y=".75" width="46.5" height="24.5" rx="3" fill="var(--bill-bg)" stroke="var(--bill-ink)" stroke-width="1.2" />
+      <rect x="4" y="4" width="40" height="18" rx="1.5" fill="none" stroke="var(--bill-ink)" stroke-opacity=".35" />
+      <ellipse cx="24" cy="13" rx="9" ry="6.5" fill="none" stroke="var(--bill-ink)" stroke-opacity=".35" />
+      <text x="24" y="16.5" text-anchor="middle" font-size="10" font-weight="600" fill="var(--bill-ink)">{`$${cents / 100}`}</text>
+    </g>
+  )
+}
+
+function Coin({ cents, cx, cy }: { cents: number; cx: number; cy: number }) {
+  const penny = cents === 1
+  const r = COIN_R[cents]
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={r} fill={penny ? 'var(--penny-bg)' : 'var(--coin-bg)'} stroke={penny ? 'var(--penny-ink)' : 'var(--coin-ink)'} stroke-width="1.2" />
+      <circle cx={cx} cy={cy} r={r - 2.5} fill="none" stroke={penny ? 'var(--penny-ink)' : 'var(--coin-ink)'} stroke-opacity=".35" />
+      <text x={cx} y={cy + 3} text-anchor="middle" font-size={r > 10 ? 8 : 7} font-weight="600" fill={penny ? 'var(--penny-ink)' : 'var(--coin-ink)'}>{cents}¢</text>
+    </g>
+  )
+}
+
+/**
+ * An amount drawn as the real bills and coins that make it, so money from the
+ * cash days still feels like money. Each kind shows as a small stack with a
+ * count, e.g. three $20 bills → a stack of three labelled ×3.
+ */
+export function Cash({ cents, empty, size = 'sm' }: { cents: number; empty?: string; size?: 'sm' | 'lg' }) {
+  const k = size === 'lg' ? 1.6 : 1
+  const { bills, coins } = cashBreakdown(cents)
+  const describe = [...bills, ...coins]
+    .map(([v, n]) => (v >= 100 ? `${n} × $${v / 100} bill` : `${n} ${COIN_NAMES[v][n > 1 ? 1 : 0]}`))
+    .join(', ')
+  if (bills.length + coins.length === 0) {
+    return (
+      <span class="cash" role="img" aria-label={empty ?? 'No money yet'}>
+        <span class="cash-item">
+          <svg viewBox="0 0 26 26" width="26" height="26"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--line-strong)" stroke-width="1.5" stroke-dasharray="3 3" /></svg>
+          {empty && <span class="cash-n">{empty}</span>}
+        </span>
+      </span>
+    )
+  }
+  return (
+    <span class={`cash ${size}`} role="img" aria-label={describe}>
+      {bills.map(([v, n]) => {
+        const layers = Math.min(n, 3)
+        return (
+          <span class="cash-item">
+            <svg viewBox={`0 0 ${48 + (layers - 1) * 3} ${26 + (layers - 1) * 3}`} width={(48 + (layers - 1) * 3) * k} height={(26 + (layers - 1) * 3) * k}>
+              {Array.from({ length: layers }, (_, i) => (
+                <g transform={`translate(${(layers - 1 - i) * 3},${(layers - 1 - i) * 3})`}><Bill cents={v} /></g>
+              ))}
+            </svg>
+            {n > 1 && <span class="cash-n">×{n}</span>}
+          </span>
+        )
+      })}
+      {coins.map(([v, n]) => {
+        const r = COIN_R[v]
+        const layers = Math.min(n, 3)
+        const w = r * 2 + 2 + (layers - 1) * 6
+        return (
+          <span class="cash-item">
+            <svg viewBox={`0 0 ${w} ${r * 2 + 2}`} width={w * k} height={(r * 2 + 2) * k}>
+              {Array.from({ length: layers }, (_, i) => <Coin cents={v} cx={r + 1 + i * 6} cy={r + 1} />)}
+            </svg>
+            {n > 1 && <span class="cash-n">×{n}</span>}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
 /** Smooth path through points, passing through the midpoints so it never overshoots. */
 function smoothPath(pts: number[][]): string {
   let d = `M${pts[0]}`
@@ -429,8 +522,10 @@ function smoothPath(pts: number[][]): string {
  * and what interest added on top (green). Spaced by real dates.
  */
 export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
-  const series = savingsSeries(txs, today)
-  if (series.length < 2) return null
+  const raw = savingsSeries(txs, today)
+  if (raw.length < 2) return null
+  // Start from $0 the day before the first transaction, so the chart rises to it.
+  const series = [{ date: addDays(raw[0].date, -1), saved: 0, interest: 0 }, ...raw]
   const t = (d: string) => Date.parse(d + 'T00:00:00Z')
   const t0 = t(series[0].date)
   const span = Math.max(t(today) - t0, 1)

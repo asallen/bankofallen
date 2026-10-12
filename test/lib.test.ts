@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  addDays, afterFailure, hashPassword, isValidDate, LOCKOUT_MINUTES, lockedMinutes, MAX_LOGIN_FAILURES,
+  addDays, afterFailure, cashBreakdown, hashPassword, isValidDate, LOCKOUT_MINUTES, lockedMinutes, MAX_LOGIN_FAILURES,
   nextAllowanceDate, parseCents, parseLoginState, planCatchUp, savingStreak, savingsSeries, verifyPassword, weekday,
 } from '../src/lib'
 
@@ -214,5 +214,19 @@ describe('savingStreak', () => {
 
   it('works when today is a Saturday', () => {
     expect(savingStreak(allowance(sats), '2026-10-10')).toBe(6)
+  })
+})
+
+describe('cashBreakdown', () => {
+  it('uses the fewest bills and coins', () => {
+    expect(cashBreakdown(6500)).toEqual({ bills: [[5000, 1], [1000, 1], [500, 1]], coins: [] })
+    expect(cashBreakdown(6000)).toEqual({ bills: [[5000, 1], [1000, 1]], coins: [] })
+    expect(cashBreakdown(4138)).toEqual({ bills: [[2000, 2], [100, 1]], coins: [[25, 1], [10, 1], [1, 3]] })
+    expect(cashBreakdown(18691)).toEqual({ bills: [[10000, 1], [5000, 1], [2000, 1], [1000, 1], [500, 1], [100, 1]], coins: [[25, 3], [10, 1], [5, 1], [1, 1]] })
+  })
+
+  it('is empty for zero or negative amounts', () => {
+    expect(cashBreakdown(0)).toEqual({ bills: [], coins: [] })
+    expect(cashBreakdown(-500)).toEqual({ bills: [], coins: [] })
   })
 })

@@ -5,7 +5,7 @@ import {
   newToken, nextAllowanceDate, parseCents, parseLoginState, prettyDate, savingStreak, USER_COLS, verifyPassword, type Tx, type User,
 } from './lib'
 import { HelpContent } from './help'
-import { Avatar, DaySelect, EditTxDialog, Icon, Layout, Money, PHOTO_SCRIPT, SavingsChart, TxActions, TxDialog, TxTable, type NavKid } from './views'
+import { Avatar, Cash, DaySelect, EditTxDialog, Icon, Layout, Money, PHOTO_SCRIPT, SavingsChart, TxActions, TxDialog, TxTable, type NavKid } from './views'
 
 type Env = { Bindings: { DB: D1Database }; Variables: { user: User | null; navKids: NavKid[] } }
 type C = Context<Env>
@@ -237,6 +237,7 @@ async function kidPage(c: C, kidId: number) {
   const nextAllowance = kid.allowance_cents > 0 ? nextAllowanceDate(today, kid.allowance_day) : null
   const isMe = viewer.id === kid.id
   const streak = savingStreak(txs, today)
+  const nextFirst = addDays(today.slice(0, 7) + '-01', 32).slice(0, 7) + '-01'
 
   return c.html(
     <Layout title={kid.display_name} user={viewer} kids={c.get('navKids')} active={isMe ? 'home' : `kid:${kid.id}`} {...flash(c)}>
@@ -254,7 +255,10 @@ async function kidPage(c: C, kidId: number) {
             </span>
           )}
         </div>
-        <div class="bal"><Money cents={balance} /></div>
+        <div class="bal-row">
+          <div class="bal"><Money cents={balance} /></div>
+          <Cash cents={balance} size="lg" />
+        </div>
         {interestAll > 0 && <div class="from-interest"><Money cents={interestAll} /> came from interest</div>}
         <SavingsChart txs={txs} today={today} />
       </div>
@@ -264,16 +268,24 @@ async function kidPage(c: C, kidId: number) {
           <div class="label">Next allowance</div>
           <div class="value">{nextAllowance ? <Money cents={kid.allowance_cents} sign /> : '—'}</div>
           <div class="muted">{nextAllowance ? `${DAYS[kid.allowance_day]}, ${prettyDate(nextAllowance)}` : 'Not set up'}</div>
+          {nextAllowance && <Cash cents={kid.allowance_cents} />}
         </div>
         <div class="stat">
           <div class="label">Interest rate</div>
           <div class="value">{s.interest_rate_bps / 100}% a year</div>
           <div class="muted">≈ +{money(nextInterest)} next month</div>
+          {s.interest_rate_bps > 0 && (
+            <div class="rate-pic" title={`Every $100 saved for a year earns ${money(s.interest_rate_bps)}`}>
+              <div class="pics"><Cash cents={10000} /><span aria-hidden="true">→</span>+<Cash cents={s.interest_rate_bps} /></div>
+              Every $100 saved grows by {money(s.interest_rate_bps)} a year
+            </div>
+          )}
         </div>
         <div class="stat">
           <div class="label">Interest earned this year</div>
           <div class="value in"><Money cents={interestYear} /></div>
           <div class="muted">{money(interestAll)} all time</div>
+          <Cash cents={interestYear} empty={s.interest_rate_bps > 0 && interestAll === 0 ? `First payment ${prettyDate(nextFirst)}` : 'None yet this year'} />
         </div>
       </div>
 
