@@ -65,8 +65,7 @@ app.get('/setup', async (c) => {
   return c.html(
     <Layout title="Welcome" {...flash(c)}>
       <div class="card login">
-        <h1>Open the Bank of Allen</h1>
-        <p class="muted">Create the first parent (banker) account. You'll add the kids next.</p>
+        <h1>Open the bank. <span>Create the first banker account, then add the kids.</span></h1>
         <form class="stack" method="post">
           <label>Your name<input name="display_name" required maxlength={40} /></label>
           <label>Username<input name="username" required autocapitalize="none" pattern="[a-zA-Z0-9_\-]+" /></label>
@@ -114,7 +113,7 @@ app.get('/login', (c) => {
   return c.html(
     <Layout title="Log in" {...flash(c)}>
       <div class="card login">
-        <h1>Log in</h1>
+        <h1>Welcome back. <span>Log in to your account.</span></h1>
         <form class="stack" method="post">
           <label>Username<input name="username" required autocapitalize="none" autocomplete="username" /></label>
           <label>Password<input name="password" type="password" required autocomplete="current-password" /></label>
@@ -159,14 +158,16 @@ app.get('/', async (c) => {
 
   return c.html(
     <Layout title="Home" user={user} {...flash(c)}>
-      <h1>Accounts</h1>
+      <h1>Accounts <span>· {money(all.reduce((sum, k) => sum + k.balance, 0))} total</span></h1>
       {all.length === 0 && <p class="card">No kid accounts yet. <a href="/admin">Add one in Settings</a>.</p>}
       <div class="grid">
         {all.map((k) => (
           <a class="kid" href={`/kid/${k.id}`}>
-            <Avatar user={k} size={64} />
-            <div>{k.display_name}</div>
-            <div class="bal">{money(k.balance)}</div>
+            <div class="who"><Avatar user={k} size={28} /><span>{k.display_name}</span></div>
+            <div>
+              <div class="label">Savings</div>
+              <div class="bal">{money(k.balance)}</div>
+            </div>
           </a>
         ))}
       </div>
@@ -184,8 +185,8 @@ app.get('/', async (c) => {
               <label>Amount<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
             </div>
             <div class="toggle">
-              <label><input type="radio" name="kind" value="deposit" checked /> 💵 Deposit</label>
-              <label><input type="radio" name="kind" value="debit" /> 🛍️ Debit</label>
+              <label><input type="radio" name="kind" value="deposit" checked />Deposit</label>
+              <label><input type="radio" name="kind" value="debit" />Debit</label>
             </div>
             <label>What for?<input name="memo" maxlength={100} placeholder="e.g. Birthday money, LEGO set" /></label>
             <button class="primary">Save</button>
@@ -224,10 +225,10 @@ async function kidPage(c: C, kidId: number) {
   return c.html(
     <Layout title={kid.display_name} user={viewer} {...flash(c)}>
       <div class="card hero">
-        <Avatar user={kid} size={96} />
-        <div class="muted" style="margin-top:8px">{isMe ? `Hi ${kid.display_name}! You have` : `${kid.display_name} has`}</div>
+        <div class="ribbon" />
+        <div class="who"><Avatar user={kid} size={44} />{isMe ? `Hi, ${kid.display_name}.` : kid.display_name}</div>
+        <div class="label">Savings balance</div>
         <div class="bal">{money(balance)}</div>
-        <div class="muted">in savings</div>
       </div>
 
       <div class="stats">
@@ -297,7 +298,7 @@ app.get('/admin', async (c) => {
 
   return c.html(
     <Layout title="Settings" user={c.get('user')} {...flash(c)}>
-      <h1>Bank settings</h1>
+      <h1>Settings <span>· allowance, interest &amp; accounts</span></h1>
 
       <div class="card">
         <h2>Interest rate</h2>
@@ -411,7 +412,7 @@ app.get('/me', (c) => {
   const user = c.get('user')!
   return c.html(
     <Layout title="My profile" user={user} {...flash(c)}>
-      <h1>My profile</h1>
+      <h1>My profile <span>· name, photo &amp; password</span></h1>
       <div class="card">
         <form class="stack" method="post" action="/me">
           <div class="row" style="align-items:center">
