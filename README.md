@@ -86,3 +86,5 @@ npm test                               # allowance/interest math, login lockout,
 | `src/views.tsx` | Layout, styles, shared UI bits |
 | `test/lib.test.ts` | Tests for the money math, login lockout, and parsing |
 | `scripts/reset-password.ts` | Command-line password reset |
+| `public/brand/` | Logo masters (lockup, tulip mark on light, dark and transparent) |
+| `scripts/build-icons.mjs` | `npm run icons`: rebuilds the favicon, home-screen icons and login logos in `public/` from `public/brand/` |

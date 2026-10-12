@@ -2,6 +2,8 @@
 	"name": "bankofallen",
 	"main": "src/index.tsx",
 	"compatibility_date": "2026-09-01",
+	// Icons, logos and brand files in public/ are served as-is, before the app runs.
+	"assets": { "directory": "./public" },
 	"d1_databases": [
 		{
 			"binding": "DB",

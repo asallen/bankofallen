@@ -74,7 +74,9 @@ header .wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; m
 .logo { display: flex; align-items: center; gap: 10px; color: var(--text); margin-right: auto;
   font-family: var(--font-display); font-size: .9rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .logo:hover { color: var(--text); }
-.logo svg { width: 30px; height: 30px; flex: none; }
+.logo img { width: 32px; height: 32px; flex: none; }
+.brand-head { position: relative; z-index: 1; display: flex; justify-content: center; padding: 6vh 16px 0; }
+.brand-head img { display: block; width: 220px; height: auto; }
 header nav { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
 header nav a { color: var(--soft-text); font-size: .92rem; }
 header nav a:hover { color: var(--text); }
@@ -197,7 +199,7 @@ button.primary:hover { background: var(--brand-hover); }
 .msg { padding: 12px 18px; border-radius: 12px; margin-bottom: 16px; background: var(--msg-bg); color: var(--text); font-size: .92rem; }
 .msg.err { background: var(--err-bg); color: var(--err); }
 .chart { width: 100%; height: 160px; display: block; }
-.login { max-width: 420px; margin: 8vh auto 0; padding: 32px; background: var(--login-bg); backdrop-filter: blur(12px); }
+.login { max-width: 420px; margin: 28px auto 0; padding: 32px; background: var(--login-bg); backdrop-filter: blur(12px); }
 .login h1 { text-align: center; font-size: 1.9rem; }
 .page-glow { position: absolute; inset: 0 0 auto; height: 720px; z-index: 0; pointer-events: none; background: var(--page-glow); }
 
@@ -302,7 +304,7 @@ function Sidebar({ user, kids = [], active }: { user: User; kids?: NavKid[]; act
   const link = (key: string) => `side-link${active === key ? ' active' : ''}`
   return (
     <aside class="side">
-      <a class="logo" href="/"><LogoMark />Bank of Allen</a>
+      <a class="logo" href="/"><img src="/brand-mark.png" width="32" height="32" alt="" />Bank of Allen</a>
       <nav class="side-nav">
         <a class={link('home')} href="/"><Icon name="home" />Home</a>
         {user.role === 'parent' && kids.length > 0 && <div class="side-label">Accounts</div>}
@@ -338,7 +340,11 @@ export function Layout(props: LayoutProps) {
         <meta name="theme-color" content="#FFFCF4" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#111E3D" media="(prefers-color-scheme: dark)" />
         <title>{props.title} · Bank of Allen</title>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23111E3D'/><g fill='none' stroke='%23FFD13F' stroke-width='1.6'><circle cx='16' cy='16' r='9.5'/><circle cx='16' cy='13.5' r='6.5'/><circle cx='16' cy='11.5' r='3.5'/></g></svg>" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/site.webmanifest" />
+        <meta name="apple-mobile-web-app-title" content="Bank of Allen" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap" />
@@ -356,10 +362,13 @@ export function Layout(props: LayoutProps) {
         ) : (
           <>
             <div class="page-glow" />
-            <header>
-              <div class="wrap">
-                <a class="logo" href="/"><LogoMark />Bank of Allen</a>
-              </div>
+            <header class="brand-head">
+              <a href="/" aria-label="Bank of Allen">
+                <picture>
+                  <source srcset="/lockup-dark.png" media="(prefers-color-scheme: dark)" />
+                  <img src="/lockup.png" width="220" height="112" alt="Bank of Allen" />
+                </picture>
+              </a>
             </header>
             <main class="wrap">
               {flash}
@@ -381,19 +390,6 @@ export function Avatar({ user, size }: { user: Pick<User, 'id' | 'display_name' 
   )
 }
 
-function LogoMark() {
-  return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="8" fill="#111E3D" />
-      <rect x=".5" y=".5" width="31" height="31" rx="7.5" fill="none" stroke="rgba(175,178,206,.3)" />
-      <g fill="none" stroke="#FFD13F" stroke-width="1.3">
-        <circle cx="16" cy="16" r="9.5" />
-        <circle cx="16" cy="13.5" r="6.5" />
-        <circle cx="16" cy="11.5" r="3.5" />
-      </g>
-    </svg>
-  )
-}
 
 const ICON_PATHS: Record<string, string> = {
   home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
