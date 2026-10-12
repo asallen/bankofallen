@@ -84,7 +84,7 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
         </dl>
       </Section>
 
-      <Section id="how" title="How it works">
+      <Section id="how" title="How It Works">
         <ul>
           <li><strong>No real money.</strong> The app is just a ledger: every deposit, debit, allowance, and interest payment is a row, and a balance is the sum of its rows.</li>
           <li><strong>Allowance</strong> is paid automatically on each kid's payday. If nobody opens the app for a while, the next visit catches up and dates each payment on the day it was due.</li>
@@ -96,7 +96,7 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
         </ul>
       </Section>
 
-      <Section id="mistakes" title="Fixing mistakes">
+      <Section id="mistakes" title="Fixing Mistakes">
         <ul>
           <li><strong>Wrong amount, date, or description:</strong> click ✎ on the transaction (on Home or a kid's page), change it, and save.</li>
           <li><strong>Shouldn't exist at all:</strong> open it with ✎ and choose <em>Delete</em>. Deleted allowance and interest payments are not re-paid.</li>
@@ -108,7 +108,7 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
         </ul>
       </Section>
 
-      <Section id="passwords" title="Passwords & lockouts">
+      <Section id="passwords" title="Passwords & Lockouts">
         <ul>
           <li><strong>A kid forgot their password:</strong> set a new one in <a href="/admin">Settings</a>, under their card.</li>
           <li><strong>Locked out:</strong> 5 wrong passwords in a row locks that username for 15 minutes. Wait, or reset the password, which also unlocks it.</li>
@@ -119,7 +119,7 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
         <Cmd>npx wrangler d1 execute bankofallen --remote --command "SELECT username, display_name, role FROM users"</Cmd>
       </Section>
 
-      <Section id="backups" title="Backups & undo">
+      <Section id="backups" title="Backups & Undo">
         <p><strong>Automatic, nothing to do.</strong> Cloudflare keeps a restorable history of the database for the last <strong>7 days</strong>. To undo a mess, roll everything back to a moment before it (use your local time and offset):</p>
         <Cmd>npx wrangler d1 time-travel restore bankofallen --timestamp=2026-10-12T18:00:00-07:00</Cmd>
         <p class="warn">This replaces the <em>entire</em> database. Every change after that moment, in every account, is lost. To fix one transaction, edit it instead. The restore prints a bookmark you can use to undo the restore itself.</p>
@@ -128,7 +128,7 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
         <p class="muted sm">To restore a keepsake copy: create a new database (<code>npx wrangler d1 create bankofallen-restore</code>), load the file into it with <code>npx wrangler d1 execute bankofallen-restore --remote --file=backup-….sql</code>, point <code>database_id</code> in <code>wrangler.jsonc</code> at it, and deploy.</p>
       </Section>
 
-      <Section id="changes" title="Changing the app">
+      <Section id="changes" title="Changing the App">
         <ul>
           <li><strong>Deploys are automatic.</strong> Pushing to the <code>main</code> branch on GitHub deploys to the live site in about a minute. Watch progress under <em>Deployments</em> in the <a href={DASHBOARD_URL}>Cloudflare dashboard</a>.</li>
           <li><strong>Before pushing,</strong> run the tests. They check the allowance and interest math, the login lockout, and money and date parsing.</li>
@@ -146,7 +146,7 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
         <p class="muted sm">Tools need Node 22 or newer. If <code>node -v</code> shows an older version, switch with <code>nvm use</code> in this folder.</p>
       </Section>
 
-      <Section id="limits" title="Costs & limits">
+      <Section id="limits" title="Costs & Limits">
         <ul>
           <li><strong>Cost: $0.</strong> Everything runs on Cloudflare's free plan. There's no server to update and nothing to renew.</li>
           <li><strong>Free plan limits:</strong> 100,000 page loads a day, 5 GB of storage, and 5 million database reads a day. A family uses a tiny fraction of that; years of transactions take a few megabytes.</li>

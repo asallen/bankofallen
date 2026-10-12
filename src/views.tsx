@@ -7,7 +7,7 @@ const CSS = `
      plus one leaf green for growth (money coming in, interest). */
   color-scheme: light;
   --font-text: "Rethink Sans", "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Oswald", "Alternate Gothic", "Franklin Gothic Demi Cond", "Arial Narrow", sans-serif;
+  --font-display: "Rethink Sans", "Helvetica Neue", Arial, sans-serif;
   --bg: #FFF9ED; --card: #FFFFFF; --raised: #FBF1DC; --raised-hover: #F6E6C2; --field: #FFFFFF;
   --text: #071F38; --soft-text: #2C4258; --muted: #66788C; --placeholder: #A3AEBA;
   --line: #F0E6CF; --line-strong: #E3D5B4;
@@ -60,7 +60,7 @@ a:hover { color: var(--text); }
 header { position: relative; z-index: 1; }
 header .wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; min-height: 68px; padding-top: 12px; padding-bottom: 12px; }
 .logo { display: flex; align-items: center; gap: 10px; color: var(--text); margin-right: auto;
-  font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+  font-family: var(--font-display); font-size: .9rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .logo:hover { color: var(--text); }
 .logo svg { width: 30px; height: 30px; flex: none; }
 header nav { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
@@ -72,7 +72,7 @@ header nav button:hover { background: var(--raised-hover); }
 
 .wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 main { padding: 20px 0 72px; position: relative; z-index: 1; }
-h1 { font-family: var(--font-display); font-size: 2.3rem; font-weight: 500; letter-spacing: .01em; text-transform: uppercase; line-height: 1.1; margin: 0 0 24px; }
+h1 { font-family: var(--font-display); font-size: 2.1rem; font-weight: 600; letter-spacing: -.015em; line-height: 1.1; margin: 0 0 24px; }
 h1 span, .soft { color: var(--muted); }
 h1 span { font-family: var(--font-text); font-size: .5em; font-weight: 400; text-transform: none; letter-spacing: 0; vertical-align: .25em; }
 h2 { font-size: .95rem; font-weight: 600; margin: 0 0 16px; }
@@ -89,7 +89,7 @@ h2 { font-size: .95rem; font-weight: 600; margin: 0 0 16px; }
 
 .hero { position: relative; overflow: hidden; background: var(--glow), var(--card); }
 .hero > * { position: relative; }
-.hero .bal { font-family: var(--font-display); font-size: 3.8rem; font-weight: 500; letter-spacing: 0; line-height: 1.05; margin: 6px 0 4px; }
+.hero .bal { font-family: var(--font-display); font-size: 3.4rem; font-weight: 600; letter-spacing: -.025em; line-height: 1.05; margin: 6px 0 4px; }
 .savings-chart { margin-top: 20px; }
 .savings-chart .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .82rem; color: var(--muted); margin-bottom: 10px; }
 .savings-chart .legend span { display: inline-flex; align-items: center; gap: 6px; }
@@ -119,12 +119,12 @@ h2 { font-size: .95rem; font-weight: 600; margin: 0 0 16px; }
 .list-row:last-child { border-bottom: 0; border-radius: 0 0 12px 12px; }
 .list-row:hover { background: var(--raised); color: var(--text); }
 .list-row .grow { flex: 1; min-width: 0; }
-.list-row .num { font-family: var(--font-display); font-size: 1.2rem; font-weight: 500; }
+.list-row .num { font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; }
 
 .stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 16px; }
 .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); }
 .stat .label { margin-bottom: 8px; }
-.stat .value { font-family: var(--font-display); font-size: 1.6rem; font-weight: 500; }
+.stat .value { font-family: var(--font-display); font-size: 1.45rem; font-weight: 600; letter-spacing: -.01em; }
 .stat .muted { font-size: .82rem; margin-top: 2px; }
 
 .table { overflow-x: auto; margin: 0 -24px -12px; }
@@ -308,7 +308,7 @@ export function Layout(props: LayoutProps) {
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23071F38'/><g fill='none' stroke='%23FFD23F' stroke-width='1.6'><circle cx='16' cy='16' r='9.5'/><circle cx='16' cy='13.5' r='6.5'/><circle cx='16' cy='11.5' r='3.5'/></g></svg>" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&family=Oswald:wght@400;500;600&display=swap" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap" />
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
       </head>
       <body>
@@ -586,7 +586,7 @@ export function TxActions({ kidId }: { kidId?: number }) {
 export function TxDialog({ kids, back, today }: { kids: NavKid[]; back: string; today: string }) {
   return (
     <dialog id="tx-dialog">
-      <h2>New transaction</h2>
+      <h2>New Transaction</h2>
       <form class="stack" method="post" action="/tx">
         <input type="hidden" name="back" value={back} />
         <div class="toggle">
@@ -617,7 +617,7 @@ export function TxDialog({ kids, back, today }: { kids: NavKid[]; back: string; 
 export function EditTxDialog({ back, today }: { back: string; today: string }) {
   return (
     <dialog id="edit-dialog">
-      <h2>Edit transaction</h2>
+      <h2>Edit Transaction</h2>
       <form class="stack" method="post">
         <input type="hidden" name="back" value={back} />
         <div class="toggle" data-kind-toggle>

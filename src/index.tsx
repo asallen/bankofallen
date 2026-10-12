@@ -72,7 +72,7 @@ app.get('/setup', async (c) => {
   return c.html(
     <Layout title="Welcome" {...flash(c)}>
       <div class="card login">
-        <h1>Open the bank</h1>
+        <h1>Open the Bank</h1>
         <p class="muted" style="text-align:center;margin:-12px 0 24px">Create the first banker account, then add the kids.</p>
         <form class="stack" method="post">
           <label>Your name<input name="display_name" required maxlength={40} /></label>
@@ -119,9 +119,9 @@ app.post('/setup', async (c) => {
 app.get('/login', (c) => {
   if (c.get('user')) return c.redirect('/')
   return c.html(
-    <Layout title="Log in" {...flash(c)}>
+    <Layout title="Log In" {...flash(c)}>
       <div class="card login">
-        <h1>Welcome back</h1>
+        <h1>Welcome Back</h1>
         <form class="stack" method="post">
           <label>Username<input name="username" required autocapitalize="none" autocomplete="username" /></label>
           <label>Password<input name="password" type="password" required autocomplete="current-password" /></label>
@@ -210,7 +210,7 @@ app.get('/', async (c) => {
       )}
 
       <div class="card">
-        <h2>Recent activity</h2>
+        <h2>Recent Activity</h2>
         <TxTable txs={recent} names={names} editable />
       </div>
     </Layout>,
@@ -392,7 +392,7 @@ app.get('/admin', async (c) => {
       <h1>Settings <span>· allowance, interest &amp; accounts</span></h1>
 
       <div class="card">
-        <h2>Interest rate</h2>
+        <h2>Interest Rate</h2>
         <form class="row" method="post" action="/admin/rate">
           <label>Yearly rate (%)<input name="rate" inputmode="decimal" value={String(s.interest_rate_bps / 100)} required /></label>
           <button class="primary" style="flex:0 0 auto">Save</button>
@@ -428,7 +428,7 @@ app.get('/admin', async (c) => {
       ))}
 
       <div class="card">
-        <h2>Add an account</h2>
+        <h2>Add an Account</h2>
         <form class="stack" method="post" action="/admin/users">
           <div class="row">
             <label>Username<input name="username" required autocapitalize="none" pattern="[a-zA-Z0-9_\-]+" /></label>
@@ -571,8 +571,8 @@ app.get('/help', async (c) => {
 app.get('/me', (c) => {
   const user = c.get('user')!
   return c.html(
-    <Layout title="My profile" user={user} kids={c.get('navKids')} active="me" {...flash(c)}>
-      <h1>My profile <span>· name, photo &amp; password</span></h1>
+    <Layout title="My Profile" user={user} kids={c.get('navKids')} active="me" {...flash(c)}>
+      <h1>My Profile <span>· name, photo &amp; password</span></h1>
       <div class="card">
         <form class="stack" method="post" action="/me">
           <div class="row" style="align-items:center">
