@@ -90,7 +90,7 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
           <li><strong>Allowance</strong> is paid automatically on each kid's payday. If nobody opens the app for a while, the next visit catches up and dates each payment on the day it was due.</li>
           <li><strong>Interest</strong> is paid on the 1st of each month: the balance at the end of the previous month × the yearly rate ÷ 12, rounded to the cent. Very small balances can round to $0 (for example, $1 at 5% is under half a cent).</li>
           <li><strong>Changing an allowance or the rate</strong> only affects payments from now on. Anything already due is paid at the old amount first.</li>
-          <li><strong>The savings chart</strong> on each kid's page stacks what they saved (blue) under what interest added (green). Early on, interest is tiny, so the green band is drawn a little thicker than to scale; the amounts above the chart are exact.</li>
+          <li><strong>The savings chart</strong> on each kid's page stacks what they saved (a soft blend of leaf green, tulip pink and gold) under what interest added (violet). Early on, interest is tiny, so the green band is drawn a little thicker than to scale; the amounts above the chart are exact.</li>
           <li><strong>Streaks</strong> count weeks in a row (Sunday to Saturday) that a kid's balance went up. Spending is fine as long as the week ends ahead. A week in progress doesn't count until it's ahead, and resets the streak if it's behind.</li>
           <li><strong>Balances can't go below $0.</strong> Debits and edits that would overdraw an account are blocked.</li>
         </ul>

@@ -3,51 +3,63 @@ import { addDays, cashBreakdown, DAYS, money, prettyDate, savingsSeries, type Tx
 
 const CSS = `
 :root {
-  /* Brand: navy #071F38 · royal #205780 · sunshine #FFD23F · soft gold #FFE59A · ivory #FFF9ED
-     plus one leaf green for growth (money coming in, interest). */
+  /* Palette — cream #FFFCF4/#F2EAD3/#E5DDC3 · gold #DAA025/#F2B636/#FFD13F/#FFE278/#FFF1BA
+     · leaf #73AE48/#A6C45F/#C2E067 · tulip #FF3157/#FF667D/#FF9CAC · navy #040D23/#111E3D/#1E2E56
+     · royal #154373/#225780 · sky #1880AF · violet #714DFE/#9E66FF/#C082FF.
+     Vibrant gradients for chart fills; subtle gradients for backgrounds. */
   color-scheme: light;
   --font-text: "Rethink Sans", "Helvetica Neue", Arial, sans-serif;
   --font-display: "Rethink Sans", "Helvetica Neue", Arial, sans-serif;
-  --bg: #FFF9ED; --card: #FFFFFF; --raised: #FBF1DC; --raised-hover: #F6E6C2; --field: #FFFFFF;
-  --text: #071F38; --soft-text: #2C4258; --muted: #66788C; --placeholder: #A3AEBA;
-  --line: #F0E6CF; --line-strong: #E3D5B4;
-  --brand: #FFD23F; --brand-hover: #FFC61A; --brand-ink: #071F38; --brand-lite: #205780;
-  --in: #2E7D4F; --out: #071F38; --focus: rgba(255, 210, 63, .45); --focus-border: #E0AE12;
-  --shadow: 0 1px 2px rgba(7, 31, 56, .05), 0 6px 20px -6px rgba(7, 31, 56, .08);
-  --page-wash: radial-gradient(70% 50% at 0% 100%, rgba(255, 210, 63, .16), transparent 70%),
-               radial-gradient(70% 60% at 100% 100%, rgba(32, 87, 128, .07), transparent 70%);
-  --glow: radial-gradient(120% 90% at 92% -20%, rgba(255, 210, 63, .22), transparent 60%);
-  --page-glow: radial-gradient(60% 60% at 50% 0%, rgba(255, 210, 63, .28), transparent 70%),
-               radial-gradient(40% 40% at 15% 40%, rgba(32, 87, 128, .08), transparent 70%);
+  --bg: #FFFCF4; --card: #FFFFFF; --raised: #F8F4E7; --raised-hover: #F2EAD3; --field: #FFFFFF;
+  --text: #111E3D; --soft-text: #1E2E56; --muted: #6A7290; --placeholder: #A6ABBE;
+  --line: #F2EAD3; --line-strong: #E5DDC3;
+  --brand: #FFD13F; --brand-hover: #F2B636; --brand-ink: #111E3D; --brand-lite: #225780;
+  --in: #4C8A2A; --out: #111E3D; --focus: rgba(255, 209, 63, .45); --focus-border: #DAA025;
+  --shadow: 0 1px 2px rgba(17, 30, 61, .05), 0 6px 20px -6px rgba(17, 30, 61, .08);
+  --page-wash: radial-gradient(45% 40% at 88% 8%, rgba(255, 226, 120, .22), transparent 70%),
+               radial-gradient(40% 35% at 8% 22%, rgba(255, 156, 172, .10), transparent 70%),
+               radial-gradient(50% 45% at 20% 100%, rgba(194, 224, 103, .14), transparent 70%),
+               radial-gradient(45% 40% at 95% 95%, rgba(255, 152, 96, .08), transparent 70%),
+               linear-gradient(180deg, #FFFCF4, #F8F4E7);
+  --glow: radial-gradient(110% 90% at 95% -20%, rgba(255, 226, 120, .28), transparent 60%),
+          radial-gradient(80% 70% at 0% 120%, rgba(194, 224, 103, .14), transparent 60%);
+  --page-glow: radial-gradient(60% 60% at 50% 0%, rgba(255, 226, 120, .35), transparent 70%),
+               radial-gradient(40% 40% at 15% 45%, rgba(255, 156, 172, .14), transparent 70%);
   --login-bg: rgba(255, 255, 255, .9);
-  --msg-bg: #FFF1C2; --err: #B4233C; --err-bg: #FDECEF;
-  --avatar-bg: #FFE59A; --avatar-ink: #071F38;
-  --b-interest: #1F6B3F; --b-interest-bg: #E1F2E6; --b-allowance: #205780; --b-allowance-bg: #E3EEF6;
-  --b-deposit: #6B4E00; --b-deposit-bg: #FFEFB8;
-  --chart-saved: #205780; --chart-interest: #FFD23F;
-  --bill-bg: #e5f3e9; --bill-ink: #2f6b4a; --coin-bg: #EFEDE6; --coin-ink: #5C6A78; --penny-bg: #f3d3b8; --penny-ink: #8f5228;
+  --msg-bg: #FFF1BA; --err: #D41F45; --err-bg: #FFE6EA;
+  --avatar-bg: #FFE278; --avatar-ink: #111E3D;
+  --b-interest: #3F7420; --b-interest-bg: #EEF6D8; --b-allowance: #225780; --b-allowance-bg: #E2EEF6;
+  --b-deposit: #7A5300; --b-deposit-bg: #FFF1BA; --b-debit: #C21E44; --b-debit-bg: #FFE6EA;
+  --b-streak: #5B36E8; --b-streak-bg: #EEE8FF;
+  --bloom-1: #75AD49; --bloom-2: #B58B61; --bloom-3: #FF677D; --bloom-4: #FF9860; --bloom-5: #FFD042;
+  --earned-1: #714DFE; --earned-2: #C082FF;
+  --bill-bg: #EEF6D8; --bill-ink: #3F7420; --coin-bg: #F2EAD3; --coin-ink: #6A6450; --penny-bg: #FFD3B8; --penny-ink: #9A4F24;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #071F38; --card: #0C2946; --raised: #133557; --raised-hover: #1A4168; --field: #071F38;
-    --text: #FFF9ED; --soft-text: #D9E1EA; --muted: #91A6BC; --placeholder: #5A7590;
-    --line: rgba(255, 249, 237, .1); --line-strong: rgba(255, 249, 237, .2);
-    --brand: #FFD23F; --brand-hover: #FFDC66; --brand-ink: #071F38; --brand-lite: #FFE59A;
-    --in: #7FD39B; --out: #FFF9ED; --focus: rgba(255, 210, 63, .4); --focus-border: #FFD23F;
+    --bg: #111E3D; --card: #1A2A52; --raised: #22355F; --raised-hover: #2A4070; --field: #111E3D;
+    --text: #FFFCF4; --soft-text: #E5DDC3; --muted: #9AA5C3; --placeholder: #5E6C92;
+    --line: rgba(255, 252, 244, .1); --line-strong: rgba(255, 252, 244, .2);
+    --brand: #FFD13F; --brand-hover: #FFE278; --brand-ink: #111E3D; --brand-lite: #FFE278;
+    --in: #C2E067; --out: #FFFCF4; --focus: rgba(255, 209, 63, .4); --focus-border: #FFD13F;
     --shadow: none;
-    --page-wash: none;
-    --glow: radial-gradient(120% 90% at 88% -15%, rgba(255, 210, 63, .16), transparent 60%),
-            radial-gradient(90% 80% at 0% 120%, rgba(32, 87, 128, .5), transparent 60%);
-    --page-glow: radial-gradient(60% 60% at 50% 0%, rgba(32, 87, 128, .6), transparent 70%),
-                 radial-gradient(40% 40% at 80% 30%, rgba(255, 210, 63, .1), transparent 70%);
-    --login-bg: rgba(12, 41, 70, .88);
-    --msg-bg: rgba(255, 210, 63, .14); --err: #FF9AA8; --err-bg: rgba(255, 110, 130, .12);
-    --avatar-bg: #205780; --avatar-ink: #FFE59A;
-    --b-interest: #9BE0B2; --b-interest-bg: rgba(127, 211, 155, .14); --b-allowance: #A9D0EE; --b-allowance-bg: rgba(32, 87, 128, .55);
-    --b-deposit: #FFE59A; --b-deposit-bg: rgba(255, 210, 63, .16);
-    --chart-saved: #3E7FB3; --chart-interest: #FFD23F;
-    --bill-bg: #1d3528; --bill-ink: #8fd3ac; --coin-bg: #23405E; --coin-ink: #D9E1EA; --penny-bg: #4f3424; --penny-ink: #e9b48d;
+    --page-wash: radial-gradient(45% 40% at 88% 5%, rgba(158, 102, 255, .14), transparent 70%),
+                 radial-gradient(50% 45% at 10% 100%, rgba(24, 128, 175, .18), transparent 70%),
+                 radial-gradient(40% 35% at 95% 90%, rgba(255, 102, 125, .07), transparent 70%),
+                 linear-gradient(180deg, #111E3D, #172649);
+    --glow: radial-gradient(110% 90% at 95% -20%, rgba(158, 102, 255, .22), transparent 60%),
+            radial-gradient(90% 80% at 0% 120%, rgba(24, 128, 175, .3), transparent 60%);
+    --page-glow: radial-gradient(60% 60% at 50% 0%, rgba(34, 87, 128, .7), transparent 70%),
+                 radial-gradient(40% 40% at 80% 30%, rgba(158, 102, 255, .16), transparent 70%);
+    --login-bg: rgba(26, 42, 82, .88);
+    --msg-bg: rgba(255, 209, 63, .14); --err: #FF9CAC; --err-bg: rgba(255, 49, 87, .14);
+    --avatar-bg: #225780; --avatar-ink: #FFE278;
+    --b-interest: #C2E067; --b-interest-bg: rgba(194, 224, 103, .14); --b-allowance: #9FD3F0; --b-allowance-bg: rgba(24, 128, 175, .28);
+    --b-deposit: #FFE278; --b-deposit-bg: rgba(255, 209, 63, .16); --b-debit: #FF9CAC; --b-debit-bg: rgba(255, 102, 125, .16);
+    --b-streak: #C082FF; --b-streak-bg: rgba(158, 102, 255, .2);
+    --earned-1: #9E66FF; --earned-2: #C082FF;
+    --bill-bg: #22381F; --bill-ink: #C2E067; --coin-bg: #2A3A62; --coin-ink: #E5DDC3; --penny-bg: #4F3424; --penny-ink: #FFB48D;
   }
 }
 * { box-sizing: border-box; }
@@ -91,6 +103,10 @@ h2 { font-size: .95rem; font-weight: 700; margin: 0 0 16px; }
 .hero > * { position: relative; }
 .hero .bal { font-family: var(--font-display); font-size: 3.4rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.05; margin: 6px 0 4px; }
 .savings-chart { margin-top: 20px; }
+.savings-chart .plot { position: relative; }
+.savings-chart .grain { position: absolute; inset: 0; pointer-events: none; background-size: 180px 180px;
+  mix-blend-mode: overlay; opacity: .7; -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
 .savings-chart .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .82rem; color: var(--muted); margin-bottom: 10px; }
 .savings-chart .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .savings-chart .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
@@ -98,7 +114,7 @@ h2 { font-size: .95rem; font-weight: 700; margin: 0 0 16px; }
 .savings-chart .axis { position: relative; height: 18px; margin-top: 6px; font-size: .75rem; color: var(--muted); }
 .savings-chart .axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 .streak { display: inline-flex; align-items: center; gap: 5px; font-size: .8rem; padding: 4px 11px; border-radius: 32px;
-  color: var(--b-allowance); background: var(--b-allowance-bg); white-space: nowrap; }
+  color: var(--b-streak); background: var(--b-streak-bg); white-space: nowrap; }
 .streak svg { width: 14px; height: 14px; }
 .from-interest { color: var(--in); font-size: .9rem; }
 .cash { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
@@ -141,6 +157,7 @@ td.date { color: var(--muted); white-space: nowrap; }
 .badge.interest { color: var(--b-interest); background: var(--b-interest-bg); }
 .badge.allowance { color: var(--b-allowance); background: var(--b-allowance-bg); }
 .badge.deposit { color: var(--b-deposit); background: var(--b-deposit-bg); }
+.badge.debit { color: var(--b-debit); background: var(--b-debit-bg); }
 td .memo { margin-right: 8px; }
 
 form.stack { display: grid; gap: 16px; }
@@ -302,10 +319,10 @@ export function Layout(props: LayoutProps) {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#FFF9ED" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#071F38" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#FFFCF4" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#111E3D" media="(prefers-color-scheme: dark)" />
         <title>{props.title} · Bank of Allen</title>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23071F38'/><g fill='none' stroke='%23FFD23F' stroke-width='1.6'><circle cx='16' cy='16' r='9.5'/><circle cx='16' cy='13.5' r='6.5'/><circle cx='16' cy='11.5' r='3.5'/></g></svg>" />
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23111E3D'/><g fill='none' stroke='%23FFD13F' stroke-width='1.6'><circle cx='16' cy='16' r='9.5'/><circle cx='16' cy='13.5' r='6.5'/><circle cx='16' cy='11.5' r='3.5'/></g></svg>" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700&display=swap" />
@@ -351,9 +368,9 @@ export function Avatar({ user, size }: { user: Pick<User, 'id' | 'display_name' 
 function LogoMark() {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="8" fill="#071F38" />
+      <rect width="32" height="32" rx="8" fill="#111E3D" />
       <rect x=".5" y=".5" width="31" height="31" rx="7.5" fill="none" stroke="rgba(175,178,206,.3)" />
-      <g fill="none" stroke="#FFD23F" stroke-width="1.3">
+      <g fill="none" stroke="#FFD13F" stroke-width="1.3">
         <circle cx="16" cy="16" r="9.5" />
         <circle cx="16" cy="13.5" r="6.5" />
         <circle cx="16" cy="11.5" r="3.5" />
@@ -514,6 +531,17 @@ export function Cash({ cents, empty, size = 'sm' }: { cents: number; empty?: str
   )
 }
 
+const GRAIN = `url("data:image/svg+xml,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(#n)'/></svg>",
+)}")`
+
+function grainMask(areaPath: string): string {
+  const shape = `url("data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 100' preserveAspectRatio='none'><path d='${areaPath}'/></svg>`,
+  )}")`
+  return `background-image:${GRAIN};-webkit-mask-image:${shape};mask-image:${shape}`
+}
+
 /** Smooth path through points, passing through the midpoints so it never overshoots. */
 function smoothPath(pts: number[][]): string {
   let d = `M${pts[0]}`
@@ -555,15 +583,49 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
   return (
     <div class="savings-chart">
       <div class="legend">
-        <span><i style="background:var(--chart-saved)" />You saved <b>{money(last.saved)}</b></span>
-        <span><i style="background:var(--chart-interest)" />Bank paid you <b>{money(last.interest)}</b></span>
+        <span><i style="background:linear-gradient(20deg,var(--bloom-1),var(--bloom-3),var(--bloom-5))" />You saved <b>{money(last.saved)}</b></span>
+        <span><i style="background:linear-gradient(90deg,var(--earned-1),var(--earned-2))" />Bank paid you <b>{money(last.interest)}</b></span>
       </div>
+      <div class="plot">
       <svg class="chart" viewBox="0 0 300 100" preserveAspectRatio="none" role="img"
         aria-label={`Balance over time: ${money(last.saved)} saved plus ${money(last.interest)} from interest`}>
-        <path d={`${total} L300,100 L0,100 Z`} fill="var(--chart-interest)" />
-        <path d={`${saved} L300,100 L0,100 Z`} fill="var(--chart-saved)" />
+        <defs>
+          {/* Amorphous fills: soft radial glows layered and clipped to each area. */}
+          {[
+            ['b-green', 'var(--bloom-1)'], ['b-olive', 'var(--bloom-2)'], ['b-pink', 'var(--bloom-3)'],
+            ['b-orange', 'var(--bloom-4)'], ['b-gold', 'var(--bloom-5)'], ['e-1', 'var(--earned-1)'], ['e-2', 'var(--earned-2)'],
+          ].map(([id, color]) => (
+            <radialGradient id={id}>
+              <stop offset="0" style={`stop-color:${color}`} />
+              <stop offset=".45" style={`stop-color:${color};stop-opacity:.75`} />
+              <stop offset="1" style={`stop-color:${color};stop-opacity:0`} />
+            </radialGradient>
+          ))}
+          <clipPath id="clip-total"><path d={`${total} L300,100 L0,100 Z`} /></clipPath>
+          <clipPath id="clip-saved"><path d={`${saved} L300,100 L0,100 Z`} /></clipPath>
+        </defs>
+        <g clip-path="url(#clip-total)">
+          <rect width="300" height="100" style="fill:var(--earned-1)" />
+          <ellipse cx="60" cy="10" rx="160" ry="70" fill="url(#e-2)" />
+          <ellipse cx="260" cy="20" rx="140" ry="60" fill="url(#e-2)" />
+        </g>
+        <g clip-path="url(#clip-saved)">
+          <rect width="300" height="100" style="fill:var(--bloom-4)" />
+          <ellipse cx="290" cy="105" rx="190" ry="85" fill="url(#b-gold)" />
+          <ellipse cx="175" cy="0" rx="170" ry="70" fill="url(#b-pink)" />
+          <ellipse cx="300" cy="10" rx="110" ry="55" fill="url(#b-pink)" />
+          <ellipse cx="95" cy="55" rx="110" ry="65" fill="url(#b-olive)" />
+          <ellipse cx="10" cy="100" rx="170" ry="95" fill="url(#b-green)" />
+          <ellipse cx="150" cy="38" rx="115" ry="38" fill="url(#b-pink)" />
+          <ellipse cx="215" cy="80" rx="80" ry="34" fill="url(#b-gold)" />
+        </g>
+        <path d={saved} fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
         <line x1="0" y1="99.5" x2="300" y2="99.5" stroke="var(--line-strong)" vector-effect="non-scaling-stroke" />
       </svg>
+      {/* Film grain at real screen pixels (the SVG is stretched, which would smear it),
+          trimmed to the chart's shape with a mask that stretches the same way. */}
+      <div class="grain" aria-hidden="true" style={grainMask(`${total} L300,100 L0,100 Z`)} />
+      </div>
       <div class="axis">
         {months.filter((_, i) => i % step === 0).map((m) => <span style={`left:${m.left}%`}>{m.label}</span>)}
       </div>
