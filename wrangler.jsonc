@@ -1,0 +1,12 @@
+{
+	"name": "bankofallen",
+	"main": "src/index.tsx",
+	"compatibility_date": "2026-09-01",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "bankofallen",
+			"database_id": "392806ec-191e-41a3-bfa6-69752871f930"
+		}
+	]
+}
