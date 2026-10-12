@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs'
 const BRAND = 'public/brand'
 const OUT = 'public'
 const TRANS = `${BRAND}/BoA-trans@4x.png` // tulip on transparent
-const TILE = `${BRAND}/BoA-dark@4x.png` // tulip on navy, full bleed
+const TILE = `${BRAND}/BoA-light@4x.png` // tulip on cream, full bleed (app icon)
 const LOCKUP = `${BRAND}/BoA lockup@4x.png` // tulip over navy "Bank of Allen"
 const NAVY = [0x12, 0x1e, 0x3d]
 const IVORY = [0xff, 0xfc, 0xf4]
@@ -43,7 +43,7 @@ writeFileSync(`${OUT}/site.webmanifest`, JSON.stringify({
     { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
     { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
   ],
-  theme_color: '#121E3D',
+  theme_color: '#FFFCF4',
   background_color: '#FFFCF4',
   display: 'standalone',
   start_url: '/',
