@@ -444,7 +444,6 @@ function Bill({ cents }: { cents: number }) {
     <g>
       <rect x=".75" y=".75" width="46.5" height="24.5" rx="3" fill="var(--bill-bg)" stroke="var(--bill-ink)" stroke-width="1.2" />
       <rect x="4" y="4" width="40" height="18" rx="1.5" fill="none" stroke="var(--bill-ink)" stroke-opacity=".35" />
-      <ellipse cx="24" cy="13" rx="9" ry="6.5" fill="none" stroke="var(--bill-ink)" stroke-opacity=".35" />
       <text x="24" y="16.5" text-anchor="middle" font-size="10" font-weight="600" fill="var(--bill-ink)">{`$${cents / 100}`}</text>
     </g>
   )
