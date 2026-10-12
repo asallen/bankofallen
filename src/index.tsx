@@ -363,6 +363,10 @@ app.get('/admin', async (c) => {
   const db = c.env.DB
   const s = (await getSettings(db))!
   const users = (await db.prepare(`SELECT ${USER_COLS} FROM users ORDER BY role DESC, display_name`).all<User>()).results
+  const stats = new Map(
+    (await db.prepare('SELECT kid_id, COUNT(*) AS n, SUM(amount_cents) AS balance FROM transactions GROUP BY kid_id')
+      .all<{ kid_id: number; n: number; balance: number }>()).results.map((r) => [r.kid_id, r]),
+  )
 
   return c.html(
     <Layout title="Settings" user={c.get('user')} kids={c.get('navKids')} active="settings" {...flash(c)}>
@@ -385,11 +389,21 @@ app.get('/admin', async (c) => {
           </div>
           <form class="stack" method="post" action={`/admin/users/${k.id}`}>
             <div class="row">
+              <label>Name<input name="display_name" value={k.display_name} required maxlength={40} /></label>
+              <label>Username (for logging in)<input name="username" value={k.username} required autocapitalize="none" pattern="[a-zA-Z0-9_\-]+" maxlength={30} /></label>
+            </div>
+            <div class="row">
               <label>Weekly allowance<input name="allowance" inputmode="decimal" value={(k.allowance_cents / 100).toFixed(2)} /></label>
               <label>Paid on<DaySelect name="allowance_day" value={k.allowance_day} /></label>
               <label>New password<input name="password" type="password" placeholder="Leave blank to keep" autocomplete="new-password" /></label>
             </div>
-            <div><button class="primary">Save {k.display_name}</button></div>
+            <div class="dialog-buttons" style="justify-content:space-between">
+              <button class="primary">Save {k.display_name}</button>
+              <button type="submit" class="pill danger" formaction={`/admin/users/${k.id}/delete`} formnovalidate
+                onclick={`return confirm(${JSON.stringify(deleteWarning(k.display_name, stats.get(k.id)))})`}>
+                Delete account
+              </button>
+            </div>
           </form>
         </div>
       ))}
@@ -453,25 +467,53 @@ app.post('/admin/users', async (c) => {
   return back(c, '/admin', 'msg', `Added ${username}.`)
 })
 
+function deleteWarning(name: string, stats?: { n: number; balance: number }): string {
+  const history = stats ? `its ${money(stats.balance)} balance and all ${stats.n} transaction${stats.n === 1 ? '' : 's'}` : 'its history'
+  return `Delete ${name}'s account, ${history}?\n\nThis can't be undone in the app. (A full database rollback within 7 days can bring it back; see Help.)`
+}
+
 app.post('/admin/users/:id', async (c) => {
   if (!isParent(c)) return c.redirect('/')
   const db = c.env.DB
   const id = Number(c.req.param('id'))
   const b = await c.req.parseBody()
+  const name = field(b, 'display_name').slice(0, 40)
+  const username = field(b, 'username').toLowerCase()
+  if (!name) return back(c, '/admin', 'err', 'Name can’t be blank.')
+  if (!/^[a-z0-9_-]{1,30}$/.test(username)) return back(c, '/admin', 'err', 'Usernames can use letters, numbers, - and _.')
+  const taken = await db.prepare('SELECT 1 FROM users WHERE username = ? AND id != ?').bind(username, id).first()
+  if (taken) return back(c, '/admin', 'err', `The username "${username}" is taken.`)
   const cents = parseCents(b.allowance || '0')
   const day = Number(b.allowance_day)
   if (cents === null || !(day >= 0 && day <= 6)) return back(c, '/admin', 'err', 'Check the allowance amount.')
   const password = field(b, 'password')
   if (password && password.length < 4) return back(c, '/admin', 'err', 'Password must be at least 4 characters.')
 
-  await db.prepare("UPDATE users SET allowance_cents = ?, allowance_day = ? WHERE id = ? AND role = 'kid'").bind(cents, day, id).run()
+  await db.prepare("UPDATE users SET display_name = ?, username = ?, allowance_cents = ?, allowance_day = ? WHERE id = ? AND role = 'kid'")
+    .bind(name, username, cents, day, id)
+    .run()
   if (password) {
     await db.batch([
       db.prepare("UPDATE users SET password_hash = ? WHERE id = ? AND role = 'kid'").bind(await hashPassword(password), id),
       db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
     ])
   }
-  return back(c, '/admin', 'msg', 'Saved.')
+  return back(c, '/admin', 'msg', `Saved ${name}.`)
+})
+
+app.post('/admin/users/:id/delete', async (c) => {
+  if (!isParent(c)) return c.redirect('/')
+  const db = c.env.DB
+  const id = Number(c.req.param('id'))
+  const kid = await db.prepare("SELECT display_name FROM users WHERE id = ? AND role = 'kid'").bind(id).first<{ display_name: string }>()
+  if (!kid) return back(c, '/admin', 'err', 'That account no longer exists.')
+  // Children first: transactions and sessions point at the user.
+  await db.batch([
+    db.prepare('DELETE FROM transactions WHERE kid_id = ?').bind(id),
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
+    db.prepare("DELETE FROM users WHERE id = ? AND role = 'kid'").bind(id),
+  ])
+  return back(c, '/admin', 'msg', `Deleted ${kid.display_name}'s account.`)
 })
 
 // ---------- help (parents) ----------

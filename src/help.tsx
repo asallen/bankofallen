@@ -100,6 +100,8 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
           <li><strong>Shouldn't exist at all:</strong> open it with ✎ and choose <em>Delete</em>. Deleted allowance and interest payments are not re-paid.</li>
           <li><strong>Forgot to record something:</strong> use <em>Deposit</em> or <em>Debit</em> and set the date to when it happened.</li>
           <li><strong>Interest after an edit:</strong> editing an old transaction doesn't recalculate interest already paid. If it matters, edit that month's interest entry by hand.</li>
+          <li><strong>Rename a kid or change their login:</strong> edit <em>Name</em> or <em>Username</em> on their card in <a href="/admin">Settings</a>. Their history stays.</li>
+          <li><strong>Remove a kid:</strong> <em>Delete account</em> on their card in Settings removes the account and all its transactions. It can only be brought back with a full rollback within 7 days.</li>
           <li><strong>A big mess</strong> (lots of wrong changes): roll the whole database back. See <a href="#backups">Backups</a>.</li>
         </ul>
       </Section>
