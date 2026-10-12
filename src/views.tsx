@@ -103,7 +103,23 @@ h2 { font-size: .95rem; font-weight: 700; margin: 0 0 16px; }
 .hero > * { position: relative; }
 .hero .bal { font-family: var(--font-display); font-size: 3.4rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.05; margin: 6px 0 4px; }
 .savings-chart { margin-top: 20px; }
-.savings-chart .plot { position: relative; }
+.savings-chart .plot { position: relative; touch-action: pan-y; cursor: crosshair; outline: none; border-radius: 4px; }
+.savings-chart .plot:focus-visible { box-shadow: 0 0 0 3px var(--focus); }
+.y-label { position: absolute; left: 0; transform: translateY(-115%); font-size: .72rem; color: var(--muted);
+  font-variant-numeric: tabular-nums; pointer-events: none; text-shadow: 0 0 3px var(--card), 0 0 3px var(--card); }
+.hover-line { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1.5px solid var(--text); opacity: .35; pointer-events: none; }
+.hover-dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--card);
+  border: 3px solid var(--text); pointer-events: none; }
+.tip { position: absolute; top: 0; margin-left: 12px; min-width: 150px; padding: 10px 12px; border-radius: 10px; pointer-events: none;
+  background: var(--card); color: var(--text); border: 1px solid var(--line); box-shadow: 0 8px 24px -6px rgba(17, 30, 61, .25);
+  font-size: .8rem; z-index: 2; white-space: nowrap; }
+.tip.left { margin-left: 0; transform: translateX(calc(-100% - 12px)); }
+.tip-date { color: var(--muted); }
+.tip-total { font-size: 1.15rem; font-weight: 700; margin: 2px 0 6px; font-variant-numeric: tabular-nums; }
+.tip-row { display: flex; align-items: center; gap: 6px; color: var(--soft-text); font-variant-numeric: tabular-nums; }
+.tip-row i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.sw-saved { background: linear-gradient(20deg, var(--bloom-1), var(--bloom-3), var(--bloom-5)); }
+.sw-earned { background: linear-gradient(90deg, var(--earned-1), var(--earned-2)); }
 .savings-chart .grain { position: absolute; inset: 0; pointer-events: none; background-size: 180px 180px;
   mix-blend-mode: overlay; opacity: .7; -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
@@ -542,6 +558,55 @@ function grainMask(areaPath: string): string {
   return `background-image:${GRAIN};-webkit-mask-image:${shape};mask-image:${shape}`
 }
 
+/** A round step (1, 2, 2.5 or 5 × a power of ten) close to `rough`, in cents. */
+function niceStep(rough: number): number {
+  const pow = 10 ** Math.floor(Math.log10(Math.max(rough, 1)))
+  return ([1, 2, 2.5, 5, 10].find((m) => m * pow >= rough) ?? 10) * pow
+}
+
+/** Hover / touch / arrow-key readout for each savings chart. */
+export const CHART_SCRIPT = `
+document.querySelectorAll('.plot[data-series]').forEach((plot) => {
+  const d = JSON.parse(plot.dataset.series);
+  const pts = d.points.map(([date, saved, interest]) => ({ date, t: Date.parse(date + 'T00:00:00Z'), saved, interest }));
+  const top = plot.querySelector('[data-top]'), len = top.getTotalLength();
+  const line = plot.querySelector('.hover-line'), dot = plot.querySelector('.hover-dot'), tip = plot.querySelector('.tip');
+  const usd = (c) => (c / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const day = (t) => new Date(t).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
+  const yAt = (ux) => { let lo = 0, hi = len; for (let i = 0; i < 22; i++) { const m = (lo + hi) / 2; if (top.getPointAtLength(m).x < ux) lo = m; else hi = m; } return top.getPointAtLength(lo).y; };
+  let index = pts.length - 1;
+  const show = (frac) => {
+    frac = Math.min(1, Math.max(0, frac));
+    const t = Math.round((d.t0 + frac * d.span) / 864e5) * 864e5;  // snap to a whole day
+    let p = pts[0]; for (const q of pts) if (q.t <= t) p = q;
+    index = pts.indexOf(p);
+    const ux = frac * 300, pct = frac * 100;
+    line.hidden = dot.hidden = tip.hidden = false;
+    line.style.left = dot.style.left = pct + '%';
+    dot.style.top = yAt(ux) + '%';
+    tip.innerHTML = '<div class="tip-date">' + day(t) + '</div><div class="tip-total">' + usd(p.saved + p.interest) + '</div>'
+      + '<div class="tip-row"><i class="sw-saved"></i>Saved ' + usd(p.saved) + '</div>'
+      + '<div class="tip-row"><i class="sw-earned"></i>Interest ' + usd(p.interest) + '</div>';
+    tip.classList.toggle('left', frac > .62);
+    tip.style.left = pct + '%';
+  };
+  const hide = () => { line.hidden = dot.hidden = tip.hidden = true; };
+  const fracOf = (e) => { const r = plot.getBoundingClientRect(); return (e.clientX - r.left) / r.width; };
+  plot.addEventListener('pointermove', (e) => show(fracOf(e)));
+  plot.addEventListener('pointerdown', (e) => show(fracOf(e)));
+  plot.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); });
+  plot.addEventListener('focus', () => show((pts[index].t - d.t0) / d.span));
+  plot.addEventListener('blur', hide);
+  document.addEventListener('pointerdown', (e) => { if (!plot.contains(e.target)) hide(); });
+  plot.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    index = Math.min(pts.length - 1, Math.max(0, index + (e.key === 'ArrowRight' ? 1 : -1)));
+    show((pts[index].t - d.t0) / d.span);
+  });
+});
+`
+
 /** Smooth path through points, passing through the midpoints so it never overshoots. */
 function smoothPath(pts: number[][]): string {
   let d = `M${pts[0]}`
@@ -563,12 +628,16 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
   const t = (d: string) => Date.parse(d + 'T00:00:00Z')
   const t0 = t(series[0].date)
   const span = Math.max(t(today) - t0, 1)
-  const max = Math.max(...series.map((p) => p.saved + p.interest), 1)
+  // Round the top of the scale up to a clean number so gridlines land on round amounts.
+  const peak = Math.max(...series.map((p) => p.saved + p.interest), 1)
+  const tick = niceStep(peak / 3)
+  const max = Math.ceil(peak / tick) * tick
+  const ticks = Array.from({ length: Math.round(max / tick) }, (_, i) => (i + 1) * tick)
   const x = (d: string) => ((t(d) - t0) / span) * 300
   const y = (cents: number) => 96 - (cents / max) * 88
   // Interest is tiny next to savings at first, so give it a minimum visible
   // thickness once there is any. The amounts in the legend stay exact.
-  const minBand = max * 0.035
+  const minBand = peak * 0.035
   const total = smoothPath(series.map((p) => [x(p.date), y(p.saved + (p.interest > 0 ? Math.max(p.interest, minBand) : 0))]))
   const saved = smoothPath(series.map((p) => [x(p.date), y(p.saved)]))
   const last = series[series.length - 1]
@@ -586,7 +655,8 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
         <span><i style="background:linear-gradient(20deg,var(--bloom-1),var(--bloom-3),var(--bloom-5))" />You saved <b>{money(last.saved)}</b></span>
         <span><i style="background:linear-gradient(90deg,var(--earned-1),var(--earned-2))" />Bank paid you <b>{money(last.interest)}</b></span>
       </div>
-      <div class="plot">
+      <div class="plot" tabindex={0} aria-label="Savings chart. Use the arrow keys to step through dates."
+        data-series={JSON.stringify({ t0, span, points: series.map((p) => [p.date, p.saved, p.interest]) })}>
       <svg class="chart" viewBox="0 0 300 100" preserveAspectRatio="none" role="img"
         aria-label={`Balance over time: ${money(last.saved)} saved plus ${money(last.interest)} from interest`}>
         <defs>
@@ -604,6 +674,9 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
           <clipPath id="clip-total"><path d={`${total} L300,100 L0,100 Z`} /></clipPath>
           <clipPath id="clip-saved"><path d={`${saved} L300,100 L0,100 Z`} /></clipPath>
         </defs>
+        {ticks.map((c) => (
+          <line x1="0" x2="300" y1={y(c)} y2={y(c)} stroke="var(--line-strong)" stroke-dasharray="3 4" vector-effect="non-scaling-stroke" />
+        ))}
         <g clip-path="url(#clip-total)">
           <rect width="300" height="100" style="fill:var(--earned-1)" />
           <ellipse cx="60" cy="10" rx="160" ry="70" fill="url(#e-2)" />
@@ -621,14 +694,20 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
         </g>
         <path d={saved} fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
         <line x1="0" y1="99.5" x2="300" y2="99.5" stroke="var(--line-strong)" vector-effect="non-scaling-stroke" />
+        <path d={total} fill="none" stroke="none" data-top />
       </svg>
       {/* Film grain at real screen pixels (the SVG is stretched, which would smear it),
           trimmed to the chart's shape with a mask that stretches the same way. */}
       <div class="grain" aria-hidden="true" style={grainMask(`${total} L300,100 L0,100 Z`)} />
+      {ticks.map((c) => <span class="y-label" style={`top:${y(c)}%`}>{money(c).replace('.00', '')}</span>)}
+      <div class="hover-line" hidden />
+      <div class="hover-dot" hidden />
+      <div class="tip" hidden role="status" aria-live="polite" />
       </div>
       <div class="axis">
         {months.filter((_, i) => i % step === 0).map((m) => <span style={`left:${m.left}%`}>{m.label}</span>)}
       </div>
+      <script dangerouslySetInnerHTML={{ __html: CHART_SCRIPT }} />
     </div>
   )
 }
