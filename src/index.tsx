@@ -4,7 +4,7 @@ import {
   addDays, catchUp, DAYS, getSettings, hashPassword, localDate, money, newToken, nextAllowanceDate,
   parseCents, prettyDate, USER_COLS, verifyPassword, type Tx, type User,
 } from './lib'
-import { Avatar, BalanceChart, DaySelect, Layout, PHOTO_SCRIPT, TxTable } from './views'
+import { Avatar, BalanceChart, DaySelect, Layout, Money, PHOTO_SCRIPT, TxTable } from './views'
 
 type Env = { Bindings: { DB: D1Database }; Variables: { user: User | null } }
 type C = Context<Env>
@@ -65,7 +65,8 @@ app.get('/setup', async (c) => {
   return c.html(
     <Layout title="Welcome" {...flash(c)}>
       <div class="card login">
-        <h1>Open the bank. <span>Create the first banker account, then add the kids.</span></h1>
+        <h1>Open the bank</h1>
+        <p class="muted" style="text-align:center;margin:-12px 0 24px">Create the first banker account, then add the kids.</p>
         <form class="stack" method="post">
           <label>Your name<input name="display_name" required maxlength={40} /></label>
           <label>Username<input name="username" required autocapitalize="none" pattern="[a-zA-Z0-9_\-]+" /></label>
@@ -113,7 +114,7 @@ app.get('/login', (c) => {
   return c.html(
     <Layout title="Log in" {...flash(c)}>
       <div class="card login">
-        <h1>Welcome back. <span>Log in to your account.</span></h1>
+        <h1>Welcome back</h1>
         <form class="stack" method="post">
           <label>Username<input name="username" required autocapitalize="none" autocomplete="username" /></label>
           <label>Password<input name="password" type="password" required autocomplete="current-password" /></label>
@@ -158,19 +159,27 @@ app.get('/', async (c) => {
 
   return c.html(
     <Layout title="Home" user={user} {...flash(c)}>
-      <h1>Accounts <span>· {money(all.reduce((sum, k) => sum + k.balance, 0))} total</span></h1>
+      <h1>Welcome, {user.display_name}</h1>
       {all.length === 0 && <p class="card">No kid accounts yet. <a href="/admin">Add one in Settings</a>.</p>}
-      <div class="grid">
-        {all.map((k) => (
-          <a class="kid" href={`/kid/${k.id}`}>
-            <div class="who"><Avatar user={k} size={28} /><span>{k.display_name}</span></div>
-            <div>
-              <div class="label">Savings</div>
-              <div class="bal">{money(k.balance)}</div>
-            </div>
-          </a>
-        ))}
-      </div>
+      {all.length > 0 && (
+        <div class="card hero">
+          <div class="label">Total in savings</div>
+          <div class="bal"><Money cents={all.reduce((sum, k) => sum + k.balance, 0)} /></div>
+          <div class="list">
+            <div class="list-head"><span>Account</span><span>Balance</span></div>
+            {all.map((k) => (
+              <a class="list-row" href={`/kid/${k.id}`}>
+                <Avatar user={k} size={36} />
+                <div class="grow">
+                  <div>{k.display_name}</div>
+                  <div class="muted sm">Savings · @{k.username}</div>
+                </div>
+                <div class="num"><Money cents={k.balance} /></div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {all.length > 0 && (
         <div class="card">
@@ -224,17 +233,20 @@ async function kidPage(c: C, kidId: number) {
 
   return c.html(
     <Layout title={kid.display_name} user={viewer} {...flash(c)}>
+      <h1>{isMe ? `Welcome, ${kid.display_name}` : kid.display_name}</h1>
       <div class="card hero">
-        <div class="ribbon" />
-        <div class="who"><Avatar user={kid} size={44} />{isMe ? `Hi, ${kid.display_name}.` : kid.display_name}</div>
-        <div class="label">Savings balance</div>
-        <div class="bal">{money(balance)}</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <Avatar user={kid} size={36} />
+          <div class="label" style="flex:1">Savings balance</div>
+        </div>
+        <div class="bal"><Money cents={balance} /></div>
+        <BalanceChart txs={txs} />
       </div>
 
       <div class="stats">
         <div class="stat">
           <div class="label">Next allowance</div>
-          <div class="value">{nextAllowance ? `+${money(kid.allowance_cents)}` : '—'}</div>
+          <div class="value">{nextAllowance ? <Money cents={kid.allowance_cents} sign /> : '—'}</div>
           <div class="muted">{nextAllowance ? `${DAYS[kid.allowance_day]}, ${prettyDate(nextAllowance)}` : 'Not set up'}</div>
         </div>
         <div class="stat">
@@ -244,17 +256,11 @@ async function kidPage(c: C, kidId: number) {
         </div>
         <div class="stat">
           <div class="label">Interest earned this year</div>
-          <div class="value in">{money(interestYear)}</div>
+          <div class="value in"><Money cents={interestYear} /></div>
           <div class="muted">{money(interestAll)} all time</div>
         </div>
       </div>
 
-      {txs.length > 1 && (
-        <div class="card">
-          <h2>Balance over time</h2>
-          <BalanceChart txs={txs} />
-        </div>
-      )}
 
       <div class="card">
         <h2>History</h2>
