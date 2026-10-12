@@ -201,6 +201,60 @@ export async function catchUp(db: D1Database): Promise<void> {
   for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50))
 }
 
+// ---------- savings chart & streak ----------
+
+type Dated = { amount_cents: number; date: string; type?: string }
+
+export type SeriesPoint = { date: string; saved: number; interest: number }
+
+/**
+ * End-of-day balance split into what the kid saved and what interest added,
+ * one point per day with activity, plus today. Interest is capped at the
+ * balance so spending never makes "saved" go negative.
+ */
+export function savingsSeries(txs: Dated[], today: string): SeriesPoint[] {
+  const sorted = [...txs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  const points: SeriesPoint[] = []
+  let balance = 0
+  let interest = 0
+  sorted.forEach((t, i) => {
+    balance += t.amount_cents
+    if (t.type === 'interest') interest += t.amount_cents
+    if (i === sorted.length - 1 || sorted[i + 1].date !== t.date) {
+      const fromInterest = Math.max(0, Math.min(interest, balance))
+      points.push({ date: t.date, saved: balance - fromInterest, interest: fromInterest })
+    }
+  })
+  const last = points[points.length - 1]
+  if (last && last.date < today) points.push({ ...last, date: today })
+  return points
+}
+
+/**
+ * Weeks in a row (Sunday–Saturday, in the family timezone) that the balance
+ * went up. The current week counts once it's ahead of last week; a week still
+ * in progress that's merely flat doesn't break the streak, but one that's
+ * behind does.
+ */
+export function savingStreak(txs: Dated[], today: string): number {
+  if (txs.length === 0) return 0
+  const balanceOn = (d: string) => txs.reduce((sum, t) => (t.date <= d ? sum + t.amount_cents : sum), 0)
+  const first = txs.reduce((min, t) => (t.date < min ? t.date : min), txs[0].date)
+  const lastSaturday = addDays(today, -((weekday(today) + 1) % 7 || 7))
+
+  let streak = 0
+  const now = balanceOn(today)
+  const lastWeek = balanceOn(lastSaturday)
+  if (now > lastWeek) streak++
+  else if (now < lastWeek) return 0
+
+  for (let end = lastSaturday; end >= first; end = addDays(end, -7)) {
+    if (balanceOn(end) > balanceOn(addDays(end, -7))) streak++
+    else break
+  }
+  return streak
+}
+
 // ---------- login throttling ----------
 
 export const MAX_LOGIN_FAILURES = 5

@@ -2,10 +2,10 @@ import { Hono, type Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import {
   addDays, afterFailure, catchUp, DAYS, getSettings, hashPassword, isValidDate, localDate, lockedMinutes, money,
-  newToken, nextAllowanceDate, parseCents, parseLoginState, prettyDate, USER_COLS, verifyPassword, type Tx, type User,
+  newToken, nextAllowanceDate, parseCents, parseLoginState, prettyDate, savingStreak, USER_COLS, verifyPassword, type Tx, type User,
 } from './lib'
 import { HelpContent } from './help'
-import { Avatar, BalanceChart, DaySelect, EditTxDialog, Layout, Money, PHOTO_SCRIPT, TxActions, TxDialog, TxTable, type NavKid } from './views'
+import { Avatar, DaySelect, EditTxDialog, Icon, Layout, Money, PHOTO_SCRIPT, SavingsChart, TxActions, TxDialog, TxTable, type NavKid } from './views'
 
 type Env = { Bindings: { DB: D1Database }; Variables: { user: User | null; navKids: NavKid[] } }
 type C = Context<Env>
@@ -236,6 +236,7 @@ async function kidPage(c: C, kidId: number) {
   const nextInterest = Math.max(0, Math.round((balance * s.interest_rate_bps) / 10000 / 12))
   const nextAllowance = kid.allowance_cents > 0 ? nextAllowanceDate(today, kid.allowance_day) : null
   const isMe = viewer.id === kid.id
+  const streak = savingStreak(txs, today)
 
   return c.html(
     <Layout title={kid.display_name} user={viewer} kids={c.get('navKids')} active={isMe ? 'home' : `kid:${kid.id}`} {...flash(c)}>
@@ -247,9 +248,15 @@ async function kidPage(c: C, kidId: number) {
         <div style="display:flex;align-items:center;gap:12px">
           <Avatar user={kid} size={36} />
           <div class="label" style="flex:1">Savings balance</div>
+          {streak > 0 && (
+            <span class="streak" title="Weeks in a row your balance went up">
+              <Icon name="flame" />{streak}-week streak
+            </span>
+          )}
         </div>
         <div class="bal"><Money cents={balance} /></div>
-        <BalanceChart txs={txs} />
+        {interestAll > 0 && <div class="from-interest"><Money cents={interestAll} /> came from interest</div>}
+        <SavingsChart txs={txs} today={today} />
       </div>
 
       <div class="stats">

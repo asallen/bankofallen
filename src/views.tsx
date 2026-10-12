@@ -1,5 +1,5 @@
 import type { Child } from 'hono/jsx'
-import { DAYS, money, prettyDate, type Tx, type User } from './lib'
+import { addDays, DAYS, money, prettyDate, savingsSeries, type Tx, type User } from './lib'
 
 const CSS = `
 :root {
@@ -19,7 +19,7 @@ const CSS = `
   --msg-bg: #eef0fe; --err: #b4233c; --err-bg: #fdecef;
   --b-interest: #11734a; --b-interest-bg: #e2f5eb; --b-allowance: #4256dc; --b-allowance-bg: #eceefe;
   --b-deposit: #3a4570; --b-deposit-bg: #eaf0ff;
-  --chart-line: #5266eb; --chart-fill: rgba(82, 102, 235, .14);
+  --chart-saved: #5266eb; --chart-interest: #4cbb86;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -39,7 +39,7 @@ const CSS = `
     --msg-bg: rgba(82, 102, 235, .14); --err: #ff9aa8; --err-bg: rgba(255, 110, 130, .1);
     --b-interest: #9fe3bf; --b-interest-bg: rgba(127, 209, 166, .12); --b-allowance: #a9b4ff; --b-allowance-bg: rgba(82, 102, 235, .18);
     --b-deposit: #cdddff; --b-deposit-bg: rgba(205, 221, 255, .1);
-    --chart-line: #c3c9ff; --chart-fill: rgba(169, 180, 255, .22);
+    --chart-saved: #6274f0; --chart-interest: #3fae7c;
   }
 }
 * { box-sizing: border-box; }
@@ -81,7 +81,17 @@ h2 { font-size: .95rem; font-weight: 500; margin: 0 0 16px; }
 .hero { position: relative; overflow: hidden; background: var(--glow), var(--card); }
 .hero > * { position: relative; }
 .hero .bal { font-size: 3.4rem; font-weight: 400; letter-spacing: -.02em; line-height: 1.1; margin: 6px 0 4px; }
-.hero .chart { margin: 20px -8px -8px; }
+.savings-chart { margin-top: 20px; }
+.savings-chart .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .82rem; color: var(--muted); margin-bottom: 10px; }
+.savings-chart .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.savings-chart .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.savings-chart .legend b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.savings-chart .axis { position: relative; height: 18px; margin-top: 6px; font-size: .75rem; color: var(--muted); }
+.savings-chart .axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.streak { display: inline-flex; align-items: center; gap: 5px; font-size: .8rem; padding: 4px 11px; border-radius: 32px;
+  color: var(--b-allowance); background: var(--b-allowance-bg); white-space: nowrap; }
+.streak svg { width: 14px; height: 14px; }
+.from-interest { color: var(--in); font-size: .9rem; }
 
 .list { margin: 20px -24px -24px; }
 .list-head { display: flex; justify-content: space-between; padding: 0 24px 10px; color: var(--muted); font-size: .8rem; border-bottom: 1px solid var(--line); }
@@ -338,6 +348,7 @@ const ICON_PATHS: Record<string, string> = {
   logout: 'M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l-4-4 4-4M6 12h10',
   deposit: 'M12 5v14M5 12h14',
   debit: 'M5 12h14',
+  flame: 'M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.2 2.3-5.3 3.8-7.6.4 1.8 1.4 2.9 2.6 3.4.2-2.6 1.4-5.2 3.6-7.1-.3 3 1.5 4.7 2.6 6.4.9 1.4 1.4 2.8 1.4 4.6 0 3.9-3.5 6.5-7.5 6.5z',
   edit: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01',
 }
@@ -404,35 +415,58 @@ export function TxTable({ txs, names, editable }: { txs: Tx[]; names?: Map<numbe
   )
 }
 
-/** Balance over time as a simple SVG area chart. `txs` must be oldest first. */
-export function BalanceChart({ txs }: { txs: Tx[] }) {
-  const points: number[] = []
-  let bal = 0
-  txs.forEach((t, i) => {
-    bal += t.amount_cents
-    if (i === txs.length - 1 || txs[i + 1].date !== t.date) points.push(bal)
-  })
-  if (points.length < 2) return null
-  const max = Math.max(...points, 1)
-  const min = Math.min(...points, 0)
-  const pts = points.map((p, i) => [(i / (points.length - 1)) * 300, 95 - ((p - min) / (max - min)) * 90])
-  // Smooth line through the midpoints (never overshoots the real values).
-  let line = `M${pts[0]}`
+/** Smooth path through points, passing through the midpoints so it never overshoots. */
+function smoothPath(pts: number[][]): string {
+  let d = `M${pts[0]}`
   for (let i = 1; i < pts.length - 1; i++) {
-    line += ` Q${pts[i]} ${(pts[i][0] + pts[i + 1][0]) / 2},${(pts[i][1] + pts[i + 1][1]) / 2}`
+    d += ` Q${pts[i]} ${(pts[i][0] + pts[i + 1][0]) / 2},${(pts[i][1] + pts[i + 1][1]) / 2}`
   }
-  line += ` L${pts[pts.length - 1]}`
+  return d + ` L${pts[pts.length - 1]}`
+}
+
+/**
+ * Balance over time as two stacked layers: what the kid saved (periwinkle)
+ * and what interest added on top (green). Spaced by real dates.
+ */
+export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
+  const series = savingsSeries(txs, today)
+  if (series.length < 2) return null
+  const t = (d: string) => Date.parse(d + 'T00:00:00Z')
+  const t0 = t(series[0].date)
+  const span = Math.max(t(today) - t0, 1)
+  const max = Math.max(...series.map((p) => p.saved + p.interest), 1)
+  const x = (d: string) => ((t(d) - t0) / span) * 300
+  const y = (cents: number) => 96 - (cents / max) * 88
+  // Interest is tiny next to savings at first, so give it a minimum visible
+  // thickness once there is any. The amounts in the legend stay exact.
+  const minBand = max * 0.035
+  const total = smoothPath(series.map((p) => [x(p.date), y(p.saved + (p.interest > 0 ? Math.max(p.interest, minBand) : 0))]))
+  const saved = smoothPath(series.map((p) => [x(p.date), y(p.saved)]))
+  const last = series[series.length - 1]
+
+  // Month labels at each 1st inside the range (at most ~6, so they don't crowd).
+  const months: { left: number; label: string }[] = []
+  for (let d = addDays(series[0].date.slice(0, 7) + '-01', 32).slice(0, 7) + '-01'; d <= today; d = addDays(d, 32).slice(0, 7) + '-01') {
+    months.push({ left: (x(d) / 300) * 100, label: new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short' }) })
+  }
+  const step = Math.ceil(months.length / 6)
+
   return (
-    <svg class="chart" viewBox="0 0 300 100" preserveAspectRatio="none" role="img" aria-label="Balance over time">
-      <defs>
-        <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="var(--chart-fill)" />
-          <stop offset="1" stop-color="var(--chart-fill)" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={`${line} L300,100 L0,100 Z`} fill="url(#fade)" />
-      <path d={line} fill="none" stroke="var(--chart-line)" stroke-width="1.75" vector-effect="non-scaling-stroke" stroke-linejoin="round" />
-    </svg>
+    <div class="savings-chart">
+      <div class="legend">
+        <span><i style="background:var(--chart-saved)" />You saved <b>{money(last.saved)}</b></span>
+        <span><i style="background:var(--chart-interest)" />Bank paid you <b>{money(last.interest)}</b></span>
+      </div>
+      <svg class="chart" viewBox="0 0 300 100" preserveAspectRatio="none" role="img"
+        aria-label={`Balance over time: ${money(last.saved)} saved plus ${money(last.interest)} from interest`}>
+        <path d={`${total} L300,100 L0,100 Z`} fill="var(--chart-interest)" />
+        <path d={`${saved} L300,100 L0,100 Z`} fill="var(--chart-saved)" />
+        <line x1="0" y1="99.5" x2="300" y2="99.5" stroke="var(--line-strong)" vector-effect="non-scaling-stroke" />
+      </svg>
+      <div class="axis">
+        {months.filter((_, i) => i % step === 0).map((m) => <span style={`left:${m.left}%`}>{m.label}</span>)}
+      </div>
+    </div>
   )
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addDays, afterFailure, hashPassword, isValidDate, LOCKOUT_MINUTES, lockedMinutes, MAX_LOGIN_FAILURES,
-  nextAllowanceDate, parseCents, parseLoginState, planCatchUp, verifyPassword, weekday,
+  nextAllowanceDate, parseCents, parseLoginState, planCatchUp, savingStreak, savingsSeries, verifyPassword, weekday,
 } from '../src/lib'
 
 const SAT = 6
@@ -160,5 +160,59 @@ describe('passwords', () => {
     expect(hash.startsWith('pbkdf2$')).toBe(true)
     expect(await verifyPassword('correct horse', hash)).toBe(true)
     expect(await verifyPassword('wrong', hash)).toBe(false)
+  })
+})
+
+describe('savingsSeries', () => {
+  const tx = (date: string, amount_cents: number, type = 'deposit') => ({ date, amount_cents, type })
+
+  it('splits each day\'s balance into saved and interest, and extends to today', () => {
+    const s = savingsSeries([tx('2026-09-05', 500, 'allowance'), tx('2026-10-01', 8, 'interest'), tx('2026-10-01', 500, 'allowance')], '2026-10-12')
+    expect(s).toEqual([
+      { date: '2026-09-05', saved: 500, interest: 0 },
+      { date: '2026-10-01', saved: 1000, interest: 8 },
+      { date: '2026-10-12', saved: 1000, interest: 8 },
+    ])
+  })
+
+  it('never lets spending push "saved" below zero', () => {
+    const s = savingsSeries([tx('2026-09-01', 50, 'interest'), tx('2026-09-02', -30, 'debit')], '2026-09-02')
+    expect(s[s.length - 1]).toEqual({ date: '2026-09-02', saved: 0, interest: 20 })
+  })
+
+  it('handles transactions in any order', () => {
+    const s = savingsSeries([tx('2026-09-02', 200), tx('2026-09-01', 100)], '2026-09-02')
+    expect(s.map((p) => p.saved)).toEqual([100, 300])
+  })
+})
+
+describe('savingStreak', () => {
+  // Saturdays: 2026-09-05, 12, 19, 26, 10-03, 10-10. 2026-10-12 is a Monday.
+  const allowance = (dates: string[]) => dates.map((date) => ({ date, amount_cents: 500 }))
+  const sats = ['2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26', '2026-10-03', '2026-10-10']
+
+  it('counts completed weeks the balance went up', () => {
+    expect(savingStreak(allowance(sats), '2026-10-12')).toBe(6)
+  })
+
+  it('counts the current week once it is ahead', () => {
+    expect(savingStreak([...allowance(sats), { date: '2026-10-12', amount_cents: 100 }], '2026-10-12')).toBe(7)
+  })
+
+  it('breaks on a week where spending beat saving', () => {
+    const txs = [...allowance(sats), { date: '2026-09-22', amount_cents: -800 }]
+    expect(savingStreak(txs, '2026-10-12')).toBe(2) // only the weeks ending Oct 3 and Oct 10
+  })
+
+  it('is 0 when this week is already behind', () => {
+    expect(savingStreak([...allowance(sats), { date: '2026-10-12', amount_cents: -100 }], '2026-10-12')).toBe(0)
+  })
+
+  it('is 0 with no activity', () => {
+    expect(savingStreak([], '2026-10-12')).toBe(0)
+  })
+
+  it('works when today is a Saturday', () => {
+    expect(savingStreak(allowance(sats), '2026-10-10')).toBe(6)
   })
 })
