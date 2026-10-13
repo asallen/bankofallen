@@ -522,17 +522,17 @@ export function Cash({ cents, empty, size = 'sm' }: { cents: number; empty?: str
     <span class={`cash ${size}`} role="img" aria-label={describe}>
       {bills.flatMap(([v, n]) => stacks(n).map((layers) => (
         <span class="cash-item">
-          <svg viewBox={`0 0 ${48 + (layers - 1) * 3} ${26 + (layers - 1) * 3}`} width={(48 + (layers - 1) * 3) * k} height={(26 + (layers - 1) * 3) * k}>
+          <svg viewBox={`0 0 48 ${26 + (layers - 1) * 3.5}`} width={48 * k} height={(26 + (layers - 1) * 3.5) * k}>
             {Array.from({ length: layers }, (_, i) => (
-              <g transform={`translate(${(layers - 1 - i) * 3},${(layers - 1 - i) * 3})`}><Bill cents={v} /></g>
+              <g transform={`translate(0,${(layers - 1 - i) * 3.5})`}><Bill cents={v} /></g>
             ))}
           </svg>
         </span>
       )))}
       {coins.flatMap(([v, n]) => stacks(n).map((layers) => {
         const r = COIN_R[v]
-        // The top coin sits at the upper left; the ones under it peek out toward the bottom right.
-        const dx = 4, dy = 3
+        // Stacked straight down: the top coin is on top, the ones under it peek out below.
+        const dx = 0, dy = 3.5
         const w = r * 2 + 2 + (layers - 1) * dx, h = r * 2 + 2 + (layers - 1) * dy
         return (
           <span class="cash-item">
