@@ -135,11 +135,14 @@ h2 { font-size: .95rem; font-weight: 700; margin: 0 0 16px; }
   color: var(--b-streak); background: var(--b-streak-bg); white-space: nowrap; }
 .streak svg { width: 14px; height: 14px; }
 .from-interest { color: var(--in); font-size: .9rem; }
-.cash { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.cash-item { display: inline-flex; align-items: center; gap: 4px; }
+.cash { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding-top: 6px; }
+.cash-item { position: relative; display: inline-flex; align-items: center; gap: 4px; }
 .cash-item svg { display: block; overflow: visible; }
-.cash.lg .cash-n { font-size: .9rem; }
-.cash-n { font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cash-n { position: absolute; top: -7px; right: -9px; min-width: 20px; padding: 2px 5px; border-radius: 32px;
+  background: var(--text); color: var(--card); border: 2px solid var(--card); font-size: .68rem; font-weight: 700;
+  line-height: 1.2; text-align: center; font-variant-numeric: tabular-nums; }
+.cash.lg .cash-n { font-size: .78rem; top: -8px; right: -10px; }
+.cash-empty { font-size: .78rem; color: var(--muted); }
 .bal-row { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; }
 .bal-row .cash { justify-content: flex-end; }
 .stat .cash { margin-top: 10px; }
@@ -485,7 +488,7 @@ function Coin({ cents, cx, cy }: { cents: number; cx: number; cy: number }) {
     <g>
       <circle cx={cx} cy={cy} r={r} fill={penny ? 'var(--penny-bg)' : 'var(--coin-bg)'} stroke={penny ? 'var(--penny-ink)' : 'var(--coin-ink)'} stroke-width="1.2" />
       <circle cx={cx} cy={cy} r={r - 2.5} fill="none" stroke={penny ? 'var(--penny-ink)' : 'var(--coin-ink)'} stroke-opacity=".35" />
-      <text x={cx} y={cy + 3} text-anchor="middle" font-size={r > 10 ? 8 : 7} font-weight="600" fill={penny ? 'var(--penny-ink)' : 'var(--coin-ink)'}>{cents}¢</text>
+      <text x={cx} y={cy + 3} text-anchor="middle" font-size={r > 10 ? 9 : 8} font-weight="700" fill={penny ? 'var(--penny-ink)' : 'var(--coin-ink)'}>{cents}</text>
     </g>
   )
 }
@@ -506,7 +509,7 @@ export function Cash({ cents, empty, size = 'sm' }: { cents: number; empty?: str
       <span class="cash" role="img" aria-label={empty ?? 'No money yet'}>
         <span class="cash-item">
           <svg viewBox="0 0 26 26" width="26" height="26"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--line-strong)" stroke-width="1.5" stroke-dasharray="3 3" /></svg>
-          {empty && <span class="cash-n">{empty}</span>}
+          {empty && <span class="cash-empty">{empty}</span>}
         </span>
       </span>
     )
@@ -522,20 +525,22 @@ export function Cash({ cents, empty, size = 'sm' }: { cents: number; empty?: str
                 <g transform={`translate(${(layers - 1 - i) * 3},${(layers - 1 - i) * 3})`}><Bill cents={v} /></g>
               ))}
             </svg>
-            {n > 1 && <span class="cash-n">×{n}</span>}
+            {n > 1 && <span class="cash-n">{n}x</span>}
           </span>
         )
       })}
       {coins.map(([v, n]) => {
         const r = COIN_R[v]
         const layers = Math.min(n, 3)
-        const w = r * 2 + 2 + (layers - 1) * 6
+        // Stacked from the bottom right (front coin) up toward the upper left.
+        const dx = 4, dy = 3
+        const w = r * 2 + 2 + (layers - 1) * dx, h = r * 2 + 2 + (layers - 1) * dy
         return (
           <span class="cash-item">
-            <svg viewBox={`0 0 ${w} ${r * 2 + 2}`} width={w * k} height={(r * 2 + 2) * k}>
-              {Array.from({ length: layers }, (_, i) => <Coin cents={v} cx={r + 1 + i * 6} cy={r + 1} />)}
+            <svg viewBox={`0 0 ${w} ${h}`} width={w * k} height={h * k}>
+              {Array.from({ length: layers }, (_, i) => <Coin cents={v} cx={r + 1 + i * dx} cy={r + 1 + i * dy} />)}
             </svg>
-            {n > 1 && <span class="cash-n">×{n}</span>}
+            {n > 1 && <span class="cash-n">{n}x</span>}
           </span>
         )
       })}
