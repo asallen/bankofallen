@@ -1,5 +1,5 @@
 import type { Child } from 'hono/jsx'
-import { addDays, cashBreakdown, DAYS, money, prettyDate, savingsSeries, weekday, type Tx, type User } from './lib'
+import { addDays, CATEGORIES, cashBreakdown, DAYS, money, prettyDate, savingsSeries, weekday, type Tx, type User } from './lib'
 
 const CSS = `
 :root {
@@ -150,6 +150,7 @@ h2 { font-size: .95rem; font-weight: 700; margin: 0 0 16px; }
 .stat .cash { margin-top: 10px; }
 
 .list { margin: 20px -24px -24px; }
+.list:first-child { margin-top: 0; }
 .list-head { display: flex; justify-content: space-between; padding: 0 24px 10px; color: var(--muted); font-size: .8rem; border-bottom: 1px solid var(--line); }
 .list-row { display: flex; align-items: center; gap: 14px; padding: 14px 24px; color: var(--text); border-bottom: 1px solid var(--line); transition: background .12s; }
 .list-row:last-child { border-bottom: 0; border-radius: 0 0 12px 12px; }
@@ -179,6 +180,8 @@ td.date { color: var(--muted); white-space: nowrap; }
 .badge.deposit { color: var(--b-deposit); background: var(--b-deposit-bg); }
 .badge.debit { color: var(--b-debit); background: var(--b-debit-bg); }
 td .memo { margin-right: 8px; }
+td .cat { margin-right: 8px; color: var(--muted); font-size: .82rem; }
+td .memo + .cat::before { content: '· '; }
 
 form.stack { display: grid; gap: 16px; }
 label { display: grid; gap: 6px; font-size: .85rem; color: var(--muted); }
@@ -447,6 +450,7 @@ export function TxTable({ txs, names, editable }: { txs: Tx[]; names?: Map<numbe
             {names && <td>{names.get(t.kid_id)}</td>}
             <td>
               {t.memo && <span class="memo">{t.memo}</span>}
+              {t.category && t.type !== 'allowance' && <span class="cat">{CATEGORIES[t.category]}</span>}
               <span class={`badge ${t.type}`}>{LABELS[t.type]}</span>
             </td>
             <td class="amt"><Amount cents={t.amount_cents} /></td>
@@ -454,7 +458,7 @@ export function TxTable({ txs, names, editable }: { txs: Tx[]; names?: Map<numbe
               <td class="edit">
                 <button type="button" class="icon-btn" title="Edit" aria-label="Edit transaction"
                   data-edit={String(t.id)} data-type={t.type} data-amount={(Math.abs(t.amount_cents) / 100).toFixed(2)}
-                  data-memo={t.memo} data-date={t.date}>
+                  data-memo={t.memo} data-date={t.date} data-category={t.category ?? ''}>
                   <Icon name="edit" />
                 </button>
               </td>
@@ -726,6 +730,15 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
   )
 }
 
+function CategorySelect() {
+  return (
+    <select name="category">
+      <option value="">None</option>
+      {Object.entries(CATEGORIES).map(([value, label]) => <option value={value}>{label}</option>)}
+    </select>
+  )
+}
+
 /** Deposit / Debit pill buttons. Pass `kidId` to preselect that account in the dialog. */
 export function TxActions({ kidId }: { kidId?: number }) {
   return (
@@ -756,7 +769,10 @@ export function TxDialog({ kids, back, today }: { kids: NavKid[]; back: string; 
           <label>Amount<input name="amount" inputmode="decimal" placeholder="0.00" required /></label>
           <label>Date<input name="date" type="date" value={today} max={today} required /></label>
         </div>
-        <label>What for?<input name="memo" maxlength={100} placeholder="e.g. Birthday money, LEGO set" /></label>
+        <div class="row">
+          <label>What for?<input name="memo" maxlength={100} placeholder="e.g. Birthday money, LEGO set" /></label>
+          <label>Category<CategorySelect /></label>
+        </div>
         <div class="dialog-buttons">
           <button type="button" class="pill" onclick="this.closest('dialog').close()">Cancel</button>
           <button class="primary">Save</button>
@@ -783,7 +799,10 @@ export function EditTxDialog({ back, today }: { back: string; today: string }) {
           <label>Amount<input name="amount" inputmode="decimal" required /></label>
           <label>Date<input name="date" type="date" max={today} required /></label>
         </div>
-        <label>What for?<input name="memo" maxlength={100} /></label>
+        <div class="row">
+          <label>What for?<input name="memo" maxlength={100} /></label>
+          <label>Category<CategorySelect /></label>
+        </div>
         <div class="dialog-buttons">
           <button type="submit" class="pill danger" data-delete formnovalidate
             onclick="return confirm('Delete this transaction? This can’t be undone.')">Delete</button>
@@ -811,7 +830,7 @@ const EDIT_SCRIPT = `
     d.querySelector('[data-auto-note]').hidden = manual;
     d.querySelector('[data-type-name]').textContent = t.type;
     if (manual) f.querySelector('input[name=kind][value=' + t.type + ']').checked = true;
-    f.amount.value = t.amount; f.date.value = t.date; f.memo.value = t.memo || '';
+    f.amount.value = t.amount; f.date.value = t.date; f.memo.value = t.memo || ''; f.category.value = t.category || '';
     d.showModal();
   });
   d.addEventListener('click', (e) => { if (e.target === d) d.close(); });

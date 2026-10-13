@@ -16,6 +16,27 @@ export type Tx = {
   type: 'deposit' | 'debit' | 'allowance' | 'interest'
   memo: string
   date: string
+  category: Category | null
+}
+
+/** What a deposit or debit was for. Stored per transaction so it can be filtered or totaled later. */
+export const CATEGORIES = {
+  gift: 'Gift',
+  allowance: 'Allowance',
+  chores: 'Chores',
+  business: 'Business sales', // e.g. selling homemade goods to family
+  toys: 'Toys & games',
+  treats: 'Treats',
+  clothes: 'Clothes',
+  books: 'Books',
+  music: 'Music',
+} as const
+export type Category = keyof typeof CATEGORIES
+
+/** A form value → a known category, or null for none/unknown. */
+export function parseCategory(value: unknown): Category | null {
+  const v = String(value ?? '')
+  return Object.hasOwn(CATEGORIES, v) ? (v as Category) : null
 }
 
 export const USER_COLS =
@@ -121,6 +142,7 @@ export type PlannedTx = {
   memo: string
   date: string
   key: string
+  category: Category | null
 }
 
 type KidSchedule = Pick<User, 'id' | 'allowance_cents' | 'allowance_day'>
@@ -154,12 +176,12 @@ export function planCatchUp(opts: {
       for (const k of kids) {
         const interest = Math.round(((balance.get(k.id) ?? 0) * bps) / 10000 / 12)
         if (interest <= 0) continue
-        add({ kid_id: k.id, amount_cents: interest, type: 'interest', memo: `Interest for ${month} (${bps / 100}% a year)`, date: d, key: `interest:${k.id}:${d.slice(0, 7)}` })
+        add({ kid_id: k.id, amount_cents: interest, type: 'interest', category: null, memo: `Interest for ${month} (${bps / 100}% a year)`, date: d, key: `interest:${k.id}:${d.slice(0, 7)}` })
       }
     }
     for (const k of kids) {
       if (k.allowance_cents <= 0 || weekday(d) !== k.allowance_day) continue
-      add({ kid_id: k.id, amount_cents: k.allowance_cents, type: 'allowance', memo: 'Weekly allowance', date: d, key: `allowance:${k.id}:${d}` })
+      add({ kid_id: k.id, amount_cents: k.allowance_cents, type: 'allowance', category: 'allowance', memo: 'Weekly allowance', date: d, key: `allowance:${k.id}:${d}` })
     }
   }
   return planned
@@ -190,10 +212,10 @@ export async function catchUp(db: D1Database): Promise<void> {
   const balances = new Map(sums.results.map((r) => [r.kid_id, r.total]))
 
   const insert = db.prepare(
-    'INSERT OR IGNORE INTO transactions (kid_id, amount_cents, type, memo, date, key) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT OR IGNORE INTO transactions (kid_id, amount_cents, type, memo, date, key, category) VALUES (?, ?, ?, ?, ?, ?, ?)',
   )
   const stmts = planCatchUp({ last, today, kids, balances, interestRateBps: s.interest_rate_bps }).map((t) =>
-    insert.bind(t.kid_id, t.amount_cents, t.type, t.memo, t.date, t.key),
+    insert.bind(t.kid_id, t.amount_cents, t.type, t.memo, t.date, t.key, t.category),
   )
   stmts.push(
     db.prepare("UPDATE settings SET value = ? WHERE key = 'last_processed_date' AND value < ?").bind(today, today),
@@ -271,6 +293,30 @@ export function savingStreak(txs: Dated[], today: string): number {
     else break
   }
   return streak
+}
+
+// ---------- schema upgrades ----------
+
+let schemaChecked = false
+
+/**
+ * Brings an existing database up to date without a manual migration step.
+ * Runs once per Worker instance; cheap when there's nothing to do.
+ */
+export async function ensureSchema(db: D1Database): Promise<void> {
+  if (schemaChecked) return
+  const cols = (await db.prepare('PRAGMA table_info(transactions)').all<{ name: string }>()).results
+  if (cols.length > 0 && !cols.some((c) => c.name === 'category')) {
+    try {
+      await db.batch([
+        db.prepare('ALTER TABLE transactions ADD COLUMN category TEXT'),
+        db.prepare("UPDATE transactions SET category = 'allowance' WHERE type = 'allowance'"),
+      ])
+    } catch {
+      // Another instance added it at the same moment.
+    }
+  }
+  schemaChecked = true
 }
 
 // ---------- login throttling ----------

@@ -92,6 +92,7 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
           <li><strong>Changing an allowance or the rate</strong> only affects payments from now on. Anything already due is paid at the old amount first.</li>
           <li><strong>The savings chart</strong> on each kid's page stacks what they saved (a soft blend of leaf green, tulip pink and gold) under what interest added (violet). Early on, interest is tiny, so the green band is drawn a little thicker than to scale; the amounts above the chart are exact.</li>
           <li><strong>Streaks</strong> count weeks in a row (Sunday to Saturday) that a kid's balance went up. Spending is fine as long as the week ends ahead. A week in progress doesn't count until it's ahead, and resets the streak if it's behind.</li>
+          <li><strong>Categories</strong> (gift, allowance, chores, business sales, toys &amp; games, treats, clothes, books, music) are optional on deposits and debits, and can be changed by editing a transaction. Automatic allowance is tagged for you. They're saved with each transaction so spending can be filtered or totaled later.</li>
           <li><strong>Balances can't go below $0.</strong> Debits and edits that would overdraw an account are blocked.</li>
         </ul>
       </Section>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addDays, afterFailure, cashBreakdown, hashPassword, isValidDate, LOCKOUT_MINUTES, lockedMinutes, MAX_LOGIN_FAILURES,
-  nextAllowanceDate, parseCents, parseLoginState, planCatchUp, savingStreak, savingsSeries, verifyPassword, weekday,
+  nextAllowanceDate, parseCategory, parseCents, parseLoginState, planCatchUp, savingStreak, savingsSeries, verifyPassword, weekday,
 } from '../src/lib'
 
 const SAT = 6
@@ -19,7 +19,7 @@ describe('planCatchUp: allowance', () => {
     // 2026-10-10 is a Saturday.
     const txs = planCatchUp({ last: '2026-10-09', today: '2026-10-10', kids: [kid(1, 500)], balances: new Map(), interestRateBps: 0 })
     expect(txs).toEqual([
-      { kid_id: 1, amount_cents: 500, type: 'allowance', memo: 'Weekly allowance', date: '2026-10-10', key: 'allowance:1:2026-10-10' },
+      { kid_id: 1, amount_cents: 500, type: 'allowance', category: 'allowance', memo: 'Weekly allowance', date: '2026-10-10', key: 'allowance:1:2026-10-10' },
     ])
   })
 
@@ -50,7 +50,7 @@ describe('planCatchUp: interest', () => {
     const txs = planCatchUp({ last: '2026-09-30', today: '2026-10-01', kids: [kid(1)], balances: new Map([[1, 2000]]), interestRateBps: 500 })
     // $20.00 × 5% ÷ 12 = 8.33¢ → 8¢
     expect(txs).toEqual([
-      { kid_id: 1, amount_cents: 8, type: 'interest', memo: 'Interest for September (5% a year)', date: '2026-10-01', key: 'interest:1:2026-10' },
+      { kid_id: 1, amount_cents: 8, type: 'interest', category: null, memo: 'Interest for September (5% a year)', date: '2026-10-01', key: 'interest:1:2026-10' },
     ])
   })
 
@@ -228,5 +228,15 @@ describe('cashBreakdown', () => {
   it('is empty for zero or negative amounts', () => {
     expect(cashBreakdown(0)).toEqual({ bills: [], coins: [] })
     expect(cashBreakdown(-500)).toEqual({ bills: [], coins: [] })
+  })
+})
+
+describe('parseCategory', () => {
+  it('accepts known categories and rejects everything else', () => {
+    expect(parseCategory('toys')).toBe('toys')
+    expect(parseCategory('allowance')).toBe('allowance')
+    expect(parseCategory('')).toBeNull()
+    expect(parseCategory('toString')).toBeNull()
+    expect(parseCategory(undefined)).toBeNull()
   })
 })

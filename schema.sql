@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   date         TEXT NOT NULL,                 -- YYYY-MM-DD in the family's timezone
   created_by   INTEGER REFERENCES users(id),  -- NULL for automatic allowance/interest
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  key          TEXT UNIQUE                    -- prevents paying the same allowance/interest twice
+  key          TEXT UNIQUE,                   -- prevents paying the same allowance/interest twice
+  category     TEXT                           -- gift, allowance, chores, business, toys, treats, clothes, books, music
 );
 CREATE INDEX IF NOT EXISTS transactions_kid ON transactions (kid_id, date);
 

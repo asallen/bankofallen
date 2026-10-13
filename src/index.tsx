@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import {
-  addDays, afterFailure, catchUp, DAYS, getSettings, hashPassword, isValidDate, localDate, lockedMinutes, money,
+  addDays, afterFailure, catchUp, DAYS, ensureSchema, parseCategory, getSettings, hashPassword, isValidDate, localDate, lockedMinutes, money,
   newToken, nextAllowanceDate, parseCents, parseLoginState, prettyDate, savingStreak, USER_COLS, verifyPassword, type Tx, type User,
 } from './lib'
 import { HelpContent } from './help'
@@ -16,6 +16,7 @@ const SESSION_DAYS = 90
 // Every request: pay anything that's come due, then figure out who's logged in.
 app.use('*', async (c, next) => {
   const db = c.env.DB
+  await ensureSchema(db)
   await catchUp(db)
   const token = getCookie(c, 'sid')
   const user = token
@@ -191,8 +192,6 @@ app.get('/', async (c) => {
       {all.length === 0 && <p class="card">No kid accounts yet. <a href="/admin">Add one in Settings</a>.</p>}
       {all.length > 0 && (
         <div class="card hero">
-          <div class="label">Total in savings</div>
-          <div class="bal"><Money cents={all.reduce((sum, k) => sum + k.balance, 0)} /></div>
           <div class="list">
             <div class="list-head"><span>Account</span><span>Balance</span></div>
             {all.map((k) => (
@@ -313,8 +312,8 @@ app.post('/tx', async (c) => {
   const date = field(b, 'date') || today
   if (!isValidDate(date) || date > today) return back(c, to, 'err', 'Pick a real date that isn’t in the future.')
   await db
-    .prepare('INSERT INTO transactions (kid_id, amount_cents, type, memo, date, created_by) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(kidId, kind === 'debit' ? -cents : cents, kind, memo, date, c.get('user')!.id)
+    .prepare('INSERT INTO transactions (kid_id, amount_cents, type, memo, date, created_by, category) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(kidId, kind === 'debit' ? -cents : cents, kind, memo, date, c.get('user')!.id, parseCategory(b.category))
     .run()
   return back(c, to, 'msg', `${kind === 'debit' ? 'Took' : 'Added'} ${money(cents)} ${kind === 'debit' ? 'from' : 'to'} ${kid.display_name}'s account.`)
 })
@@ -349,8 +348,8 @@ app.post('/tx/:id', async (c) => {
   const newBalance = (await balanceOf(db, tx.kid_id)) - tx.amount_cents + amount
   if (newBalance < 0) return back(c, to, 'err', `That would leave the account at ${money(newBalance)}.`)
 
-  await db.prepare('UPDATE transactions SET amount_cents = ?, type = ?, memo = ?, date = ? WHERE id = ?')
-    .bind(amount, type, field(b, 'memo').slice(0, 100), date, tx.id)
+  await db.prepare('UPDATE transactions SET amount_cents = ?, type = ?, memo = ?, date = ?, category = ? WHERE id = ?')
+    .bind(amount, type, field(b, 'memo').slice(0, 100), date, parseCategory(b.category), tx.id)
     .run()
   return back(c, to, 'msg', 'Transaction updated.')
 })
