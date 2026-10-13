@@ -532,13 +532,13 @@ export function Cash({ cents, empty, size = 'sm' }: { cents: number; empty?: str
       {coins.map(([v, n]) => {
         const r = COIN_R[v]
         const layers = Math.min(n, 3)
-        // Stacked from the bottom right (front coin) up toward the upper left.
+        // The top coin sits at the upper left; the ones under it peek out toward the bottom right.
         const dx = 4, dy = 3
         const w = r * 2 + 2 + (layers - 1) * dx, h = r * 2 + 2 + (layers - 1) * dy
         return (
           <span class="cash-item">
             <svg viewBox={`0 0 ${w} ${h}`} width={w * k} height={h * k}>
-              {Array.from({ length: layers }, (_, i) => <Coin cents={v} cx={r + 1 + i * dx} cy={r + 1 + i * dy} />)}
+              {Array.from({ length: layers }, (_, i) => <Coin cents={v} cx={r + 1 + (layers - 1 - i) * dx} cy={r + 1 + (layers - 1 - i) * dy} />)}
             </svg>
             {n > 1 && <span class="cash-n">{n}x</span>}
           </span>
