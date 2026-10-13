@@ -232,7 +232,6 @@ async function kidPage(c: C, kidId: number) {
   const balance = txs.reduce((sum, t) => sum + t.amount_cents, 0)
   const interest = txs.filter((t) => t.type === 'interest')
   const interestAll = interest.reduce((sum, t) => sum + t.amount_cents, 0)
-  const interestYear = interest.filter((t) => t.date.startsWith(today.slice(0, 4))).reduce((sum, t) => sum + t.amount_cents, 0)
   const nextInterest = Math.max(0, Math.round((balance * s.interest_rate_bps) / 10000 / 12))
   const nextAllowance = kid.allowance_cents > 0 ? nextAllowanceDate(today, kid.allowance_day) : null
   const isMe = viewer.id === kid.id
@@ -274,18 +273,13 @@ async function kidPage(c: C, kidId: number) {
           <div class="label">Interest rate</div>
           <div class="value">{s.interest_rate_bps / 100}% a year</div>
           <div class="muted">≈ +{money(nextInterest)} next month</div>
-          {s.interest_rate_bps > 0 && (
-            <div class="rate-pic" title={`Every $100 saved for a year earns ${money(s.interest_rate_bps)}`}>
-              <div class="pics"><Cash cents={10000} /><span aria-hidden="true">→</span>+<Cash cents={s.interest_rate_bps} /></div>
-              Every $100 saved grows by {money(s.interest_rate_bps)} a year
-            </div>
-          )}
+          {nextInterest > 0 && <Cash cents={nextInterest} />}
         </div>
         <div class="stat">
-          <div class="label">Interest earned this year</div>
-          <div class="value in"><Money cents={interestYear} /></div>
-          <div class="muted">{money(interestAll)} all time</div>
-          <Cash cents={interestYear} empty={s.interest_rate_bps > 0 && interestAll === 0 ? `First payment ${prettyDate(nextFirst)}` : 'None yet this year'} />
+          <div class="label">Interest earned</div>
+          <div class="value in"><Money cents={interestAll} /></div>
+          <div class="muted">{interestAll > 0 ? 'All time' : s.interest_rate_bps > 0 ? `First payment ${prettyDate(nextFirst)}` : 'Interest is off'}</div>
+          {interestAll > 0 && <Cash cents={interestAll} />}
         </div>
       </div>
 

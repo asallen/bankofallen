@@ -139,16 +139,15 @@ h2 { font-size: .95rem; font-weight: 700; margin: 0 0 16px; }
 .cash-item { position: relative; display: inline-flex; align-items: center; gap: 4px; }
 .cash-item svg { display: block; overflow: visible; }
 .cash-n { position: absolute; top: -7px; right: -9px; min-width: 20px; padding: 2px 5px; border-radius: 32px;
-  background: var(--text); color: var(--card); border: 2px solid var(--card); font-size: .68rem; font-weight: 700;
+  background: var(--coin-ink); color: var(--card); border: 2px solid var(--card); font-size: .68rem; font-weight: 700;
   line-height: 1.2; text-align: center; font-variant-numeric: tabular-nums; }
 .cash.lg .cash-n { font-size: .78rem; top: -8px; right: -10px; }
+.cash-n.bill { background: var(--bill-ink); }
+.cash-n.penny { background: var(--penny-ink); }
 .cash-empty { font-size: .78rem; color: var(--muted); }
 .bal-row { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; }
 .bal-row .cash { justify-content: flex-end; }
 .stat .cash { margin-top: 10px; }
-.rate-pic { margin-top: 10px; color: var(--muted); font-size: .78rem; }
-.rate-pic .pics { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.rate-pic .cash { margin: 0; }
 
 .list { margin: 20px -24px -24px; }
 .list-head { display: flex; justify-content: space-between; padding: 0 24px 10px; color: var(--muted); font-size: .8rem; border-bottom: 1px solid var(--line); }
@@ -525,7 +524,7 @@ export function Cash({ cents, empty, size = 'sm' }: { cents: number; empty?: str
                 <g transform={`translate(${(layers - 1 - i) * 3},${(layers - 1 - i) * 3})`}><Bill cents={v} /></g>
               ))}
             </svg>
-            {n > 1 && <span class="cash-n">{n}x</span>}
+            {n > 1 && <span class="cash-n bill">{n}x</span>}
           </span>
         )
       })}
@@ -540,7 +539,7 @@ export function Cash({ cents, empty, size = 'sm' }: { cents: number; empty?: str
             <svg viewBox={`0 0 ${w} ${h}`} width={w * k} height={h * k}>
               {Array.from({ length: layers }, (_, i) => <Coin cents={v} cx={r + 1 + (layers - 1 - i) * dx} cy={r + 1 + (layers - 1 - i) * dy} />)}
             </svg>
-            {n > 1 && <span class="cash-n">{n}x</span>}
+            {n > 1 && <span class={`cash-n ${v === 1 ? 'penny' : 'coin'}`}>{n}x</span>}
           </span>
         )
       })}
