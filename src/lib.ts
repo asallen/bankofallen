@@ -225,7 +225,7 @@ export async function catchUp(db: D1Database): Promise<void> {
 
 // ---------- cash breakdown ----------
 
-export const BILLS = [10000, 5000, 2000, 1000, 500, 100]
+export const BILLS = [100000, 50000, 10000, 5000, 2000, 1000, 500, 100]
 export const COINS = [25, 10, 5, 1]
 
 /** The fewest US bills and coins that make `cents`, as [value in cents, count] pairs. */

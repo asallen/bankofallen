@@ -225,6 +225,11 @@ describe('cashBreakdown', () => {
     expect(cashBreakdown(18691)).toEqual({ bills: [[10000, 1], [5000, 1], [2000, 1], [1000, 1], [500, 1], [100, 1]], coins: [[25, 3], [10, 1], [5, 1], [1, 1]] })
   })
 
+  it('uses $500 and $1,000 bills for big balances', () => {
+    expect(cashBreakdown(268000)).toEqual({ bills: [[100000, 2], [50000, 1], [10000, 1], [5000, 1], [2000, 1], [1000, 1]], coins: [] })
+    expect(cashBreakdown(40000)).toEqual({ bills: [[10000, 4]], coins: [] })
+  })
+
   it('is empty for zero or negative amounts', () => {
     expect(cashBreakdown(0)).toEqual({ bills: [], coins: [] })
     expect(cashBreakdown(-500)).toEqual({ bills: [], coins: [] })
