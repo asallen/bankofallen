@@ -1,5 +1,5 @@
 import type { Child } from 'hono/jsx'
-import { addDays, cashBreakdown, DAYS, money, prettyDate, savingsSeries, type Tx, type User } from './lib'
+import { addDays, cashBreakdown, DAYS, money, prettyDate, savingsSeries, weekday, type Tx, type User } from './lib'
 
 const CSS = `
 :root {
@@ -638,12 +638,26 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
   const saved = smoothPath(series.map((p) => [x(p.date), y(p.saved)]))
   const last = series[series.length - 1]
 
-  // Month labels at each 1st inside the range (at most ~6, so they don't crowd).
-  const months: { left: number; label: string }[] = []
-  for (let d = addDays(series[0].date.slice(0, 7) + '-01', 32).slice(0, 7) + '-01'; d <= today; d = addDays(d, 32).slice(0, 7) + '-01') {
-    months.push({ left: (x(d) / 300) * 100, label: new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short' }) })
+  // Date labels along the bottom, spaced to fit the range: days for short charts,
+  // weeks (Sundays) for a couple of months, then month names. At most ~6, and none
+  // hugging the edges where they'd be cut off.
+  const days = Math.round(span / 864e5)
+  const fmt = (d: string, opts: Intl.DateTimeFormatOptions) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', ...opts })
+  const candidates: { date: string; label: string }[] = []
+  if (days <= 14) {
+    for (let d = series[0].date; d <= today; d = addDays(d, 1)) candidates.push({ date: d, label: fmt(d, { month: 'short', day: 'numeric' }) })
+  } else if (days <= 75) {
+    let d = series[0].date
+    while (weekday(d) !== 0) d = addDays(d, 1)
+    for (; d <= today; d = addDays(d, 7)) candidates.push({ date: d, label: fmt(d, { month: 'short', day: 'numeric' }) })
+  } else {
+    for (let d = addDays(series[0].date.slice(0, 7) + '-01', 32).slice(0, 7) + '-01'; d <= today; d = addDays(d, 32).slice(0, 7) + '-01') {
+      candidates.push({ date: d, label: fmt(d, { month: 'short' }) })
+    }
   }
-  const step = Math.ceil(months.length / 6)
+  const inside = candidates.map((c) => ({ left: (x(c.date) / 300) * 100, label: c.label })).filter((c) => c.left >= 5 && c.left <= 95)
+  const step = Math.ceil(inside.length / 6)
+  const months = inside.filter((_, i) => i % step === 0)
 
   return (
     <div class="savings-chart">
@@ -701,7 +715,7 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
       <div class="tip" hidden role="status" aria-live="polite" />
       </div>
       <div class="axis">
-        {months.filter((_, i) => i % step === 0).map((m) => <span style={`left:${m.left}%`}>{m.label}</span>)}
+        {months.map((m) => <span style={`left:${m.left}%`}>{m.label}</span>)}
       </div>
       <script dangerouslySetInnerHTML={{ __html: CHART_SCRIPT }} />
     </div>
