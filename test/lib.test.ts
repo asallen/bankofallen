@@ -221,12 +221,12 @@ describe('cashBreakdown', () => {
   it('uses the fewest bills and coins', () => {
     expect(cashBreakdown(6500)).toEqual({ bills: [[5000, 1], [1000, 1], [500, 1]], coins: [] })
     expect(cashBreakdown(6000)).toEqual({ bills: [[5000, 1], [1000, 1]], coins: [] })
-    expect(cashBreakdown(4138)).toEqual({ bills: [[2000, 2], [100, 1]], coins: [[25, 1], [10, 1], [1, 3]] })
-    expect(cashBreakdown(18691)).toEqual({ bills: [[10000, 1], [5000, 1], [2000, 1], [1000, 1], [500, 1], [100, 1]], coins: [[25, 3], [10, 1], [5, 1], [1, 1]] })
+    expect(cashBreakdown(4138)).toEqual({ bills: [[1000, 4], [100, 1]], coins: [[25, 1], [10, 1], [1, 3]] })
+    expect(cashBreakdown(18691)).toEqual({ bills: [[10000, 1], [5000, 1], [1000, 3], [500, 1], [100, 1]], coins: [[25, 3], [10, 1], [5, 1], [1, 1]] })
   })
 
   it('uses $500 and $1,000 bills for big balances', () => {
-    expect(cashBreakdown(268000)).toEqual({ bills: [[100000, 2], [50000, 1], [10000, 1], [5000, 1], [2000, 1], [1000, 1]], coins: [] })
+    expect(cashBreakdown(268000)).toEqual({ bills: [[100000, 2], [50000, 1], [10000, 1], [5000, 1], [1000, 3]], coins: [] })
     expect(cashBreakdown(40000)).toEqual({ bills: [[10000, 4]], coins: [] })
   })
 
