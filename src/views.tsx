@@ -138,6 +138,10 @@ h2 { font-size: .95rem; font-weight: 700; margin: 0 0 16px; }
 .streak svg { width: 14px; height: 14px; }
 .from-interest { color: var(--in); font-size: .9rem; }
 .cash { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.cash[data-cash] { cursor: pointer; border-radius: 8px; transition: transform .15s; }
+.cash[data-cash]:hover { transform: translateY(-1px); }
+.cash[data-cash]:active { transform: scale(.97); }
+.cash[data-cash]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
 .cash-item { position: relative; display: inline-flex; align-items: center; gap: 4px; }
 .cash-item svg { display: block; overflow: visible; }
 .cash-empty { font-size: .78rem; color: var(--muted); }
@@ -556,7 +560,8 @@ export function Cash({ cents, empty, size = 'sm' }: { cents: number; empty?: str
     )
   }
   return (
-    <span class={`cash ${size}`} role="img" aria-label={describe}>
+    <span class={`cash ${size}`} role="button" tabindex={0} aria-label={`${describe}. Tap to count it.`}
+      data-cash={[...bills, ...coins].map(([v, n]) => `${v}:${n}`).join(',')}>
       {bills.flatMap(([v, n]) => stacks(n).map((layers) => (
         <span class="cash-item">
           <svg viewBox={`0 0 48 ${26 + (layers - 1) * 3.5}`} width={48 * k} height={(26 + (layers - 1) * 3.5) * k}>
@@ -934,4 +939,392 @@ document.getElementById('photo-file').addEventListener('change', async (e) => {
   document.getElementById('photo-data').value = url;
   document.getElementById('photo-preview').innerHTML = '<img class="avatar" style="width:96px;height:96px" src="' + url + '">';
 });
+`
+
+const COUNTER_CSS = `
+dialog.cash-dialog { width: 100%; height: 100%; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0;
+  border-radius: 0; background: transparent; box-shadow: none; color: #FFFCF4; overflow: hidden; touch-action: none; }
+dialog.cash-dialog[open] { animation: cd-fade .25s ease-out; }
+dialog.cash-dialog::backdrop { background: radial-gradient(60% 50% at 50% 50%, rgba(34, 87, 128, .55), transparent 70%), rgba(4, 13, 35, .84);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.cd-wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: calc(56px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.cd-head { text-align: center; }
+.cd-label { font-size: .78rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: rgba(255, 252, 244, .6); }
+.cd-count { font-size: 3.2rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; transition: color .3s; }
+.cd-count.pop { animation: cd-pop .28s ease-out; }
+.cd-count.done { color: #FFD13F; }
+.cd-of { color: rgba(255, 252, 244, .65); font-size: .95rem; font-variant-numeric: tabular-nums; }
+.cd-stage { position: relative; width: 100%; max-width: 440px; height: min(50vh, 340px); perspective: 900px; touch-action: none; }
+.cd-card { position: absolute; left: 50%; top: 42%; cursor: grab; touch-action: none; will-change: transform;
+  transition: transform .4s cubic-bezier(.2, .8, .2, 1), opacity .3s; }
+.cd-card.dragging { transition: none; cursor: grabbing; }
+.cd-card.flying { pointer-events: none; transition: transform .5s cubic-bezier(.25, .6, .35, 1), opacity .5s; }
+.cd-card.hinting { animation: cd-nudge 1.4s ease-in-out .5s 2; }
+.cd-card svg { display: block; width: 100%; height: auto; }
+.cd-card.bill { width: min(340px, calc(100vw - 56px)); border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .12), 0 16px 32px -12px rgba(0, 0, 0, .6); }
+.cd-card.coin { width: calc(min(200px, 50vw) * var(--f)); border-radius: 50%;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, .28), 0 16px 28px -10px rgba(0, 0, 0, .65); }
+.cd-shine { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: soft-light;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, .7) 50%, transparent 62%) var(--sx, 110%) 0 / 260% 100% no-repeat; }
+.cd-hint { display: flex; align-items: center; gap: 8px; font-size: .92rem; color: rgba(255, 252, 244, .7); transition: opacity .4s; }
+.cd-hint.gone { opacity: 0; }
+.cd-hint svg { width: 18px; height: 18px; }
+.cd-close { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 14px; width: 42px; height: 42px; border-radius: 50%;
+  border: 0; background: rgba(255, 252, 244, .12); color: #FFFCF4; cursor: pointer; display: grid; place-items: center; z-index: 3000; }
+.cd-close:hover { background: rgba(255, 252, 244, .2); }
+.cd-close svg { width: 20px; height: 20px; }
+.cd-defs { position: absolute; width: 0; height: 0; }
+.cd-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 2500; }
+.cd-confetti i { position: absolute; left: 50%; top: 32%; width: 8px; height: 13px; border-radius: 2px;
+  animation: cd-burst 1.6s cubic-bezier(.15, .7, .35, 1) forwards; }
+@keyframes cd-fade { from { opacity: 0; } }
+@keyframes cd-pop { 50% { transform: scale(1.08); } }
+@keyframes cd-nudge { 0%, 100% { translate: 0; rotate: 0deg; } 25% { translate: 26px 0; rotate: 5deg; } 50% { translate: -8px 0; rotate: -1.5deg; } 70% { translate: 0; rotate: 0deg; } }
+@keyframes cd-burst { from { transform: translate(-50%, 0) rotate(0); opacity: 1; }
+  to { transform: translate(calc(-50% + var(--x)), var(--y)) rotate(var(--r)); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .cd-card, .cd-card.flying { transition-duration: .15s; }
+  .cd-card.hinting, .cd-confetti i { animation: none; }
+}
+`
+
+/**
+ * The counting table: tap any Cash picture to pick up that money as a stack of
+ * big bills and coins, then flick them off one at a time to count it. Render once per page.
+ */
+export function CashCounter() {
+  return (
+    <dialog id="cash-dialog" class="cash-dialog" aria-label="Count your money">
+      <style dangerouslySetInnerHTML={{ __html: COUNTER_CSS }} />
+      <svg class="cd-defs" aria-hidden="true"><defs data-defs /></svg>
+      <button type="button" class="cd-close" data-close-cash aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+      <div class="cd-wrap">
+        <div class="cd-head" aria-live="polite">
+          <div class="cd-label" data-label>Counted</div>
+          <div class="cd-count" data-counted>$0</div>
+          <div class="cd-of" data-of></div>
+        </div>
+        <div class="cd-stage" data-stage />
+        <div class="cd-hint" data-hint>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v4a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.6-2.2L4.5 14.5a1.5 1.5 0 0 1 2.3-1.9L9 15" />
+          </svg>
+          Swipe the top one away to count it
+        </div>
+        <div class="cd-confetti" data-confetti />
+      </div>
+      <script dangerouslySetInnerHTML={{ __html: COUNTER_SCRIPT }} />
+    </dialog>
+  )
+}
+
+const COUNTER_SCRIPT = `
+(() => {
+  const d = document.getElementById('cash-dialog');
+  const $ = (s) => d.querySelector(s);
+  const stage = $('[data-stage]'), countEl = $('[data-counted]'), ofEl = $('[data-of]'), labelEl = $('[data-label]'), hint = $('[data-hint]');
+
+  // Flat, US-style money: every bill is green like the real ones, with Bank of Allen touches.
+  const BILLS = { 100: 'ONE', 500: 'FIVE', 1000: 'TEN', 5000: 'FIFTY', 10000: 'ONE HUNDRED', 50000: 'FIVE HUNDRED', 100000: 'ONE THOUSAND' };
+  const G = { edge: '#C9E5A8', border: '#5A9A34', panel: '#B9DC93', bar: '#6FAE45', dark: '#4A8628', face: '#D4E99C', neck: '#9EC66C',
+    light: '#E9F5D8' };
+  // [words along the bottom, size vs a quarter, metal, ridged edge]
+  const COINS = { 25: ['QUARTER DOLLAR', 1, 's', 1], 10: ['ONE DIME', .74, 's', 1], 5: ['FIVE CENTS', .87, 'n', 0], 1: ['ONE CENT', .79, 'c', 0] };
+  // [rim, face, highlight, ring, portrait, hair, ink]
+  const METALS = { s: ['#8E96A2', '#CDD2D9', '#E8EBEF', '#AEB5BF', '#A9B0BA', '#8C94A0', '#4F5866'],
+    n: ['#8E8A82', '#C9C5BC', '#E2DFD8', '#ADA89E', '#A8A398', '#8A857B', '#55504A'],
+    c: ['#A65A2E', '#DA8B52', '#F0B07F', '#C1743F', '#BC6C35', '#9A5226', '#6E3315'] };
+  const FONT = 'font-family="Rethink Sans, Helvetica Neue, Arial, sans-serif" font-weight="700"';
+
+  $('[data-defs]').innerHTML = '<path id="cd-arc-top" d="M32 100a68 68 0 0 1 136 0"/><path id="cd-arc-bot" d="M22 100a78 78 0 0 0 156 0"/>'
+    + '<clipPath id="cd-coin-face"><circle cx="100" cy="100" r="86"/></clipPath>';
+
+  // The Bank of Allen lotus.
+  const lotus = (x, y, s, color) => '<g transform="translate(' + x + ' ' + y + ') scale(' + s + ')" fill="none" stroke="' + color + '" stroke-width="3.2" stroke-linecap="round">'
+    + '<path d="M0-22C-11-15-15-4-11 7"/><path d="M0-22C11-15 15-4 11 7"/><path d="M-11 7c-9-1-15-8-15-20 8 0 14 4 18 10"/><path d="M11 7c9-1 15-8 15-20-8 0-14 4-18 10"/></g>';
+  const rect = (x, y, w, h, fill, rx) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (rx ?? h / 2) + '" fill="' + fill + '"/>';
+  const text = (x, y, size, str, fill, extra) => '<text x="' + x + '" y="' + y + '" font-size="' + size + '" fill="' + fill + '" ' + (extra || '') + '>' + str + '</text>';
+  // A box whose corners are scooped out by circles of radius r centered on its corners.
+  function scallop(x0, y0, x1, y1, r) {
+    return 'M' + (x0 + r) + ' ' + y0 + 'H' + (x1 - r) + 'A' + r + ' ' + r + ' 0 0 0 ' + x1 + ' ' + (y0 + r) + 'V' + (y1 - r)
+      + 'A' + r + ' ' + r + ' 0 0 0 ' + (x1 - r) + ' ' + y1 + 'H' + (x0 + r) + 'A' + r + ' ' + r + ' 0 0 0 ' + x0 + ' ' + (y1 - r)
+      + 'V' + (y0 + r) + 'A' + r + ' ' + r + ' 0 0 0 ' + (x0 + r) + ' ' + y0 + 'Z';
+  }
+
+  // One flat portrait, after the classic bill illustration, drawn in its own 0–690 × 75–300 space and
+  // turned into each person by flipping it and swapping hair, beard and tie.
+  const HAIR = {
+    swoop: 'M262 205c-10-55 0-105 38-123 30-12 75-7 92 18 8 15 3 30-4 40-8-20-26-30-48-28-20 3-32 18-35 38-2 20-5 40-15 55z',
+    short: 'M298 150c-6-40 8-64 40-72 30-6 52 6 56 30 2 12-2 24-6 32-8-22-26-30-46-28-22 2-36 16-44 38z',
+    sides: 'M296 118c-10 10-14 30-12 48l14 6c-2-18 0-36 6-46zM392 118c8 10 10 30 6 48l-12 4c4-18 4-34-2-44z',
+    long: 'M298 112c-22 20-30 80-14 130l28-4c-14-36-14-80-6-110zM390 112c20 20 24 80 6 130l-24-4c12-36 12-80 6-110z',
+  };
+  const BEARD = {
+    chin: 'M301 162c2 38 22 60 44 60 25 0 41-22 43-62-8 25-23 36-43 36-20 0-35-11-44-34z',
+    full: 'M301 168c0 46 20 64 44 64 26 0 43-20 43-68-6 14-14 22-26 24h-34c-14-2-22-8-27-20z',
+  };
+  const STACHE = 'M314 190c8-15 48-15 58 0-10 8-22 6-29 2-7 4-19 6-29-2z';
+  function figure(o, C) {
+    let g = '<path d="M235 300c1-45 27-72 65-78h90c35 6 40 38 40 78z" fill="' + C.coat + '"/>'
+      + '<path d="M300 300l36-62 38-2-34 64z" fill="' + C.shirt + '"/>'
+      + '<path d="M318 186h54v52c-12 10-42 10-54 0z" fill="' + C.neck + '"/>'
+      + '<path d="M300 130c0-30 30-40 55-38 25 3 35 28 33 58-2 35-16 62-43 65-27-3-43-25-45-55z" fill="' + C.face + '"/>';
+    if (o.beard) g += '<path d="' + BEARD[o.beard] + '" fill="' + C.hair + '"/>';
+    if (o.stache) g += '<path d="' + STACHE + '" fill="' + C.hair + '"/>';
+    if (o.beard === 'full') g += '<path d="M334 200h20" stroke="' + C.face + '" stroke-width="4" stroke-linecap="round"/>';
+    g += '<path d="' + HAIR[o.hair] + '" fill="' + (o.light ? C.light : C.hair) + '"/>';
+    if (o.curls) g += [[276, 176], [280, 198]].map(([x, y]) => '<ellipse cx="' + x + '" cy="' + y + '" rx="13" ry="10" fill="' + C.light + '"/>').join('');
+    if (o.bald) g += '<path d="M310 104c14-10 50-10 66 2" fill="none" stroke="' + C.neck + '" stroke-width="4" stroke-linecap="round"/>';
+    g += '<path d="M326 152h-6v18h-7" fill="none" stroke="' + C.hair + '" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>';
+    if (o.tie) g += '<path d="M326 236l19 9 19-9v18l-19-9-19 9z" fill="' + C.hair + '"/>';
+    return o.flip ? '<g transform="translate(690 0) scale(-1 1)">' + g + '</g>' : g;
+  }
+  const PEOPLE = {
+    100: { hair: 'swoop', light: 1, curls: 1, flip: 1 }, // Washington
+    500: { hair: 'short', beard: 'chin', tie: 1 }, // Lincoln
+    1000: { hair: 'swoop' }, // Hamilton
+    5000: { hair: 'short', beard: 'full', stache: 1, flip: 1 }, // Grant
+    10000: { hair: 'long', light: 1, bald: 1, flip: 1 }, // Franklin
+    50000: { hair: 'short', tie: 1 }, // McKinley
+    100000: { hair: 'sides', bald: 1, stache: 1, flip: 1 }, // Cleveland
+    25: { hair: 'swoop', light: 1, curls: 1 }, // Washington
+    10: { hair: 'short' }, // Roosevelt
+    5: { hair: 'swoop' }, // Jefferson
+    1: { hair: 'short', beard: 'chin', flip: 1 }, // Lincoln
+  };
+  const billPortrait = (v) => '<g transform="translate(380 104) scale(.8) translate(-345 -75)">'
+    + figure(PEOPLE[v], { coat: G.dark, shirt: G.face, neck: G.neck, face: G.face, hair: G.dark, light: G.light }) + '</g>';
+  const coinPortrait = (v, bust, hair, hi) => '<g transform="translate(100 50) scale(.36) translate(-332 -75)">'
+    + figure(PEOPLE[v], { coat: hair, shirt: hi, neck: bust, face: hi, hair: hair, light: hi }) + '</g>';
+
+  function bill(v) {
+    const n = String(v / 100), size = n.length > 3 ? 30 : n.length > 2 ? 36 : 46;
+    const corner = (x, y, anchor) => text(x, y, size, n, G.light, 'text-anchor="' + anchor + '"');
+    return '<svg viewBox="0 0 760 324"><g ' + FONT + '>'
+      + rect(0, 0, 760, 324, G.edge, 6)
+      + rect(14, 14, 732, 296, G.border, 4)
+      + '<path d="' + scallop(40, 40, 720, 284, 62) + '" fill="' + G.panel + '"/>'
+      + '<path d="' + scallop(54, 54, 706, 270, 62) + '" fill="none" stroke="' + G.border + '" stroke-width="2.5"/>'
+      + '<path d="' + scallop(62, 62, 698, 262, 62) + '" fill="none" stroke="' + G.border + '" stroke-width="1" stroke-opacity=".6"/>'
+      + corner(24, 72, 'start') + corner(736, 72, 'end') + corner(24, 298, 'start') + corner(736, 298, 'end')
+      // Top banner, split by the portrait.
+      + rect(150, 76, 190, 24, G.bar) + text(245, 93, 13, 'BANK OF ALLEN', G.light, 'text-anchor="middle" letter-spacing="2.5"')
+      + rect(498, 76, 160, 24, G.bar) + text(578, 92.5, 10, BILLS[v] + ' DOLLAR' + (v > 100 ? 'S' : ''), G.light, 'text-anchor="middle" letter-spacing="1.2"')
+      // Left seal: the Bank of Allen lotus. Right seal: the BoA monogram.
+      + '<circle cx="180" cy="160" r="40" fill="' + G.border + '"/><circle cx="180" cy="160" r="29" fill="' + G.bar + '"/>' + lotus(180, 166, 1, G.light)
+      + '<circle cx="580" cy="160" r="40" fill="' + G.border + '"/><circle cx="580" cy="160" r="29" fill="' + G.bar + '"/>'
+      + text(580, 167, 19, 'BoA', G.light, 'text-anchor="middle"')
+      // Text lines under the seals.
+      + rect(120, 222, 120, 10, G.border) + rect(140, 242, 90, 10, G.border)
+      + rect(520, 222, 120, 10, G.border) + rect(530, 242, 100, 10, G.border) + rect(540, 108, 80, 10, G.border)
+      + billPortrait(v)
+      + rect(150, 290, 180, 14, G.bar) + rect(430, 290, 180, 14, G.bar)
+      + '</g></svg>';
+  }
+
+  function coin(v) {
+    const [word, , m, ridged] = COINS[v], [rim, face, hi, ring, bust, hair, ink] = METALS[m];
+    const arc = (id, str) => '<text font-size="13" letter-spacing="3" fill="' + ink + '"><textPath href="#' + id + '" startOffset="50%" text-anchor="middle">' + str + '</textPath></text>';
+    return '<svg viewBox="0 0 200 200"><g ' + FONT + ' text-anchor="middle">'
+      + '<circle cx="100" cy="100" r="100" fill="' + rim + '"/>'
+      + (ridged ? '<circle cx="100" cy="100" r="96" fill="none" stroke="' + ink + '" stroke-opacity=".35" stroke-width="6" stroke-dasharray="1.6 1.8"/>' : '')
+      // Flat face with a lit crescent on the top-left edge.
+      + '<g clip-path="url(#cd-coin-face)"><circle cx="100" cy="100" r="86" fill="' + hi + '"/><circle cx="106" cy="106" r="86" fill="' + face + '"/></g>'
+      + '<circle cx="100" cy="100" r="80" fill="none" stroke="' + ring + '" stroke-width="2.5"/>'
+      + arc('cd-arc-top', 'BANK OF ALLEN')
+      + arc('cd-arc-bot', word)
+      + coinPortrait(v, bust, hair, hi)
+      + text(100, 150, 24, v + '¢', ink)
+      + '</g></svg>';
+  }
+
+  let deck = [], total = 0, counted = 0, seen = 0, finished = false, shown = 0, raf = 0;
+  let fmt = String;
+
+  function place(el, x, y, rot, scale, tiltY) {
+    el.style.transform = 'translate(-50%, -50%) translate(' + x + 'px, ' + y + 'px) rotate(' + rot + 'deg) rotateY(' + (tiltY || 0) + 'deg) scale(' + scale + ')';
+  }
+  // The stack: the top card sits straight, the ones under it peek out a little crooked.
+  function slot(el, i, lift) {
+    const depth = Math.min(i, 6);
+    el.style.zIndex = String(1000 - i);
+    el.style.setProperty('--sx', '110%');
+    place(el, i ? el._dx : 0, depth * 7 + (lift || 0), i ? el._rot : 0, 1 - depth * .03);
+  }
+  function layout() {
+    deck.forEach((el, i) => { if (el._out) return; slot(el, i); el.style.opacity = i > 6 ? '0' : '1'; });
+  }
+
+  function open(src) {
+    stage.replaceChildren();
+    $('[data-confetti]').replaceChildren();
+    const values = [];
+    src.dataset.cash.split(',').forEach((p) => { const [v, n] = p.split(':').map(Number); for (let i = 0; i < n && values.length < 200; i++) values.push(v); });
+    total = values.reduce((a, b) => a + b, 0);
+    fmt = (c) => '$' + (c / 100).toLocaleString('en-US', total % 100 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 });
+    deck = values.map((v, i) => {
+      const el = document.createElement('div'), isCoin = v < 100;
+      el.className = 'cd-card ' + (isCoin ? 'coin' : 'bill');
+      if (isCoin) el.style.setProperty('--f', COINS[v][1]);
+      el.innerHTML = (isCoin ? coin(v) : bill(v)) + '<i class="cd-shine"></i>';
+      el._v = v; el._coin = isCoin;
+      el._rot = ((i * 47) % 11 - 5) * .9; el._dx = ((i * 31) % 7 - 3) * 2.5;
+      el.style.transition = 'none'; el.style.opacity = '0';
+      place(el, 0, 60, el._rot, .9);
+      stage.appendChild(el);
+      return el;
+    });
+    counted = 0; seen = 0; shown = 0; finished = false;
+    countEl.textContent = fmt(0); countEl.classList.remove('done');
+    labelEl.textContent = 'Counted';
+    ofEl.textContent = 'of ' + fmt(total);
+    hint.classList.remove('gone');
+    d.showModal();
+    stage.offsetWidth; // deal the stack in from below
+    deck.forEach((el, i) => { el.style.transition = ''; el.style.transitionDelay = Math.min(i, 6) * 30 + 'ms'; });
+    layout();
+    setTimeout(() => { deck.forEach((el) => (el.style.transitionDelay = '')); deck[0]?.classList.add('hinting'); }, 500);
+  }
+
+  function rollTo(to) {
+    const from = shown, t0 = performance.now();
+    cancelAnimationFrame(raf);
+    const step = (t) => {
+      const k = Math.min((t - t0) / 320, 1);
+      shown = from + (to - from) * (1 - (1 - k) ** 3);
+      countEl.textContent = fmt(Math.round(shown));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    countEl.classList.remove('pop'); countEl.offsetWidth; countEl.classList.add('pop');
+  }
+
+  function celebrate() {
+    finished = true;
+    labelEl.textContent = 'You counted it all!';
+    countEl.classList.add('done');
+    ofEl.textContent = 'Swipe again to count it over';
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const box = $('[data-confetti]'), colors = ['#FFD13F', '#FF667D', '#A6C45F', '#9E66FF', '#1880AF', '#FF9860'];
+    for (let i = 0; i < 46; i++) {
+      const c = document.createElement('i'), a = Math.random() * Math.PI * 2, r = 120 + Math.random() * 220;
+      c.style.background = colors[i % colors.length];
+      c.style.setProperty('--x', Math.cos(a) * r + 'px');
+      c.style.setProperty('--y', Math.sin(a) * r * .7 + 160 + Math.random() * 120 + 'px');
+      c.style.setProperty('--r', (Math.random() * 900 - 450) + 'deg');
+      c.style.animationDelay = Math.random() * 120 + 'ms';
+      box.appendChild(c);
+    }
+    setTimeout(() => box.replaceChildren(), 2000);
+  }
+
+  let audio;
+  function sound(isCoin) {
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const t = audio.currentTime, out = audio.destination;
+      if (isCoin) { // a little clink
+        [2700, 4100].forEach((f, i) => {
+          const o = audio.createOscillator(), g = audio.createGain();
+          o.frequency.value = f * (.96 + Math.random() * .08);
+          g.gain.setValueAtTime(.08 / (i + 1), t); g.gain.exponentialRampToValueAtTime(.0001, t + .32);
+          o.connect(g).connect(out); o.start(t); o.stop(t + .35);
+        });
+      } else { // a paper flick
+        const len = Math.floor(audio.sampleRate * .11), buf = audio.createBuffer(1, len, audio.sampleRate), ch = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 2;
+        const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+        s.buffer = buf; f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = .7; g.gain.value = .35;
+        s.connect(f).connect(g).connect(out); s.start(t);
+      }
+    } catch {}
+  }
+
+  // Throw the top card off the stack, count it, and tuck it back under the bottom.
+  function fling(dx, dy) {
+    if (!deck[0] || deck[0]._out) return;
+    const el = deck.shift();
+    if (finished) { counted = 0; seen = 0; shown = 0; finished = false; labelEl.textContent = 'Counted'; countEl.classList.remove('done'); ofEl.textContent = 'of ' + fmt(total); }
+    const m = Math.hypot(dx, dy) || 1, far = Math.max(innerWidth, innerHeight) * .9;
+    el.classList.remove('hinting', 'dragging'); el.classList.add('flying');
+    el.style.zIndex = '2000';
+    place(el, dx / m * far, dy / m * far - 40, (dx >= 0 ? 1 : -1) * 38, .95, (dx >= 0 ? 1 : -1) * 25);
+    el.style.opacity = '0';
+    deck.push(el);
+    counted += el._v; seen++;
+    rollTo(counted);
+    sound(el._coin);
+    navigator.vibrate?.(8);
+    if (seen === deck.length) setTimeout(celebrate, 200);
+    // Everyone else moves up now, so the next card can be grabbed straight away.
+    el._out = true;
+    layout();
+    setTimeout(() => {
+      if (!el._out) return;
+      el._out = false;
+      el.classList.remove('flying');
+      const i = deck.indexOf(el);
+      el.style.transition = 'none';
+      slot(el, i, 30); // slide it in under the stack
+      el.offsetWidth;
+      el.style.transition = '';
+      el.style.opacity = i > 6 ? '0' : '1';
+      slot(el, i);
+    }, 480);
+  }
+
+  let drag = null, lastDrag = 0;
+  stage.addEventListener('pointerdown', (e) => {
+    const el = deck[0];
+    if (!el || !e.target.closest('.cd-card')) return; // a press anywhere on the stack picks up the top one
+    if (el._out) return; // a one-card stack that's still flying
+    el.setPointerCapture(e.pointerId);
+    el.classList.remove('hinting'); el.classList.add('dragging');
+    hint.classList.add('gone');
+    drag = { el, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: 0, y: 0, lx: e.clientX, ly: e.clientY, t: e.timeStamp, vx: 0, vy: 0 };
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dt = Math.max(e.timeStamp - drag.t, 1);
+    drag.vx = (e.clientX - drag.lx) / dt; drag.vy = (e.clientY - drag.ly) / dt;
+    drag.lx = e.clientX; drag.ly = e.clientY; drag.t = e.timeStamp;
+    drag.x = e.clientX - drag.x0; drag.y = e.clientY - drag.y0;
+    place(drag.el, drag.x, drag.y, drag.x * .07, 1.04, Math.max(-25, Math.min(25, drag.x * .12)));
+    drag.el.style.setProperty('--sx', 100 - drag.x / 3 + '%');
+  });
+  const release = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { el, x, y } = drag, fresh = e.timeStamp - drag.t < 90;
+    const dist = Math.hypot(x, y), speed = fresh ? Math.hypot(drag.vx, drag.vy) : 0;
+    drag = null; lastDrag = Date.now();
+    el.classList.remove('dragging');
+    if (e.type === 'pointercancel') layout();
+    else if (dist < 6) fling(1, -.15); // a tap counts it too
+    else if (dist > 90 || (speed > .4 && dist > 24)) fling(x, y); // off the way it was dragged
+    else layout();
+  };
+  stage.addEventListener('pointerup', release);
+  stage.addEventListener('pointercancel', release);
+
+  const close = () => { d.close(); cancelAnimationFrame(raf); };
+  d.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close-cash]')) return close();
+    if (Date.now() - lastDrag < 300 || e.target.closest('.cd-card')) return;
+    if (e.target === d || e.target.classList.contains('cd-wrap')) close();
+  });
+  d.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); hint.classList.add('gone'); fling(1, 0); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); hint.classList.add('gone'); fling(-1, 0); }
+  });
+
+  document.addEventListener('click', (e) => { const c = e.target.closest('[data-cash]'); if (c) open(c); });
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('[data-cash]')) { e.preventDefault(); open(e.target); }
+  });
+})();
 `

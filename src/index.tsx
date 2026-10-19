@@ -5,7 +5,7 @@ import {
   newToken, nextAllowanceDate, parseCents, parseLoginState, prettyDate, savingStreak, USER_COLS, verifyPassword, type Tx, type User,
 } from './lib'
 import { HelpContent } from './help'
-import { Avatar, Cash, DaySelect, DIALOG_SCRIPT, EditTxDialog, Icon, Layout, Money, PHOTO_SCRIPT, SavingsChart, TxActions, TxDialog, TxTable, type NavKid } from './views'
+import { Avatar, Cash, CashCounter, DaySelect, DIALOG_SCRIPT, EditTxDialog, Icon, Layout, Money, PHOTO_SCRIPT, SavingsChart, TxActions, TxDialog, TxTable, type NavKid } from './views'
 
 type Env = { Bindings: { DB: D1Database }; Variables: { user: User | null; navKids: NavKid[] } }
 type C = Context<Env>
@@ -287,6 +287,7 @@ async function kidPage(c: C, kidId: number) {
         <h2>History</h2>
         <TxTable txs={[...txs].reverse()} editable={viewer.role === 'parent'} />
       </div>
+      <CashCounter />
     </Layout>,
   )
 }
