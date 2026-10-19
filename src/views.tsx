@@ -645,16 +645,32 @@ document.querySelectorAll('.plot[data-series]').forEach((plot) => {
 `
 
 /**
- * Smooth path through daily points, curving through the midpoints so it never
- * overshoots. With a point for every day, changes still land on the right day.
+ * Smooth path that passes exactly through every daily point (monotone cubic,
+ * as in d3's curveMonotoneX): no overshoot, flat stretches stay flat, and the
+ * hover dot sits on the line.
  */
 function smoothPath(pts: number[][]): string {
-  const f = (p: number[]) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`
-  let d = `M${f(pts[0])}`
-  for (let i = 1; i < pts.length - 1; i++) {
-    d += ` Q${f(pts[i])} ${f([(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2])}`
+  const n = pts.length
+  const f = (x: number, y: number) => `${x.toFixed(2)},${y.toFixed(2)}`
+  if (n < 3) return pts.map((p, i) => `${i ? 'L' : 'M'}${f(p[0], p[1])}`).join(' ')
+  const sign = (v: number) => (v < 0 ? -1 : v > 0 ? 1 : 0)
+  const slope = (i: number) => (pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0])
+  const t: number[] = new Array(n)
+  for (let i = 1; i < n - 1; i++) {
+    const h0 = pts[i][0] - pts[i - 1][0], h1 = pts[i + 1][0] - pts[i][0]
+    const s0 = slope(i - 1), s1 = slope(i)
+    const p = (s0 * h1 + s1 * h0) / (h0 + h1)
+    t[i] = (sign(s0) + sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p)) || 0
   }
-  return d + ` L${f(pts[pts.length - 1])}`
+  t[0] = (3 * slope(0) - t[1]) / 2
+  t[n - 1] = (3 * slope(n - 2) - t[n - 2]) / 2
+  let d = `M${f(pts[0][0], pts[0][1])}`
+  for (let i = 0; i < n - 1; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[i + 1]
+    const dx = (x1 - x0) / 3
+    d += ` C${f(x0 + dx, y0 + dx * t[i])} ${f(x1 - dx, y1 - dx * t[i + 1])} ${f(x1, y1)}`
+  }
+  return d
 }
 
 /**
