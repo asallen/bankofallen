@@ -278,6 +278,17 @@ code { font: .85em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: va
 
 @media (max-width: 600px) {
   .bal-row .cash { justify-content: flex-start; }
+  .table { overflow-x: visible; }
+  .table table { table-layout: fixed; font-size: .85rem; }
+  .table td, .table th { padding-left: 4px; padding-right: 4px; }
+  .table .c-date { width: 64px; } .table .c-who { width: 38px; } .table .c-amt { width: 84px; } .table .c-edit { width: 52px; }
+  .table td:last-child, .table th:last-child { padding-right: 16px; }
+  .table td:first-child, .table th:first-child { padding-left: 20px; width: 80px; }
+  .table td { overflow-wrap: anywhere; }
+  .table td .badge:not(.solo) { display: none; }
+  .table td .memo + .cat::before { content: ''; }
+  .table td .cat { display: block; margin-top: 2px; }
+  .table td.amt { font-size: .85rem; }
   h1 { font-size: 1.7rem; }
   .hero .bal { font-size: 2.7rem; }
   .card { padding: 20px; } .table { margin: 0 -20px -8px; } .list { margin: 16px -20px -20px; }
@@ -421,31 +432,48 @@ export function Amount({ cents }: { cents: number }) {
   return <span class={cents >= 0 ? 'in' : 'out'}><Money cents={cents} sign /></span>
 }
 
+/** "Oct 12", plus the year only for dates more than 365 days ago: "Oct 12 '25". */
+function shortDate(date: string): string {
+  const d = new Date(date + 'T00:00:00Z')
+  const md = d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })
+  return Date.now() - d.getTime() > 365 * 864e5 ? `${md} '${String(d.getUTCFullYear()).slice(2)}` : md
+}
+
 const LABELS: Record<Tx['type'], string> = { deposit: 'Deposit', debit: 'Debit', allowance: 'Allowance', interest: 'Interest' }
 
-export function TxTable({ txs, names, editable }: { txs: Tx[]; names?: Map<number, string>; editable?: boolean }) {
+export function TxTable({ txs, kids, editable }: { txs: Tx[]; kids?: Map<number, NavKid>; editable?: boolean }) {
   if (txs.length === 0) return <p class="muted">No activity yet.</p>
   return (
     <div class="table">
     <table>
       <thead>
         <tr>
-          <th>Date</th>
-          {names && <th>Who</th>}
+          <th class="c-date">Date</th>
+          {kids && <th class="c-who">Who</th>}
           <th>Description</th>
-          <th style="text-align:right">Amount</th>
-          {editable && <th><span class="sr">Edit</span></th>}
+          <th class="c-amt" style="text-align:right">Amount</th>
+          {editable && <th class="c-edit"><span class="sr">Edit</span></th>}
         </tr>
       </thead>
       <tbody>
         {txs.map((t) => (
           <tr>
-            <td class="date">{prettyDate(t.date)}</td>
-            {names && <td>{names.get(t.kid_id)}</td>}
+            <td class="date" title={prettyDate(t.date)}>{shortDate(t.date)}</td>
+            {kids && (
+              <td class="who">
+                {kids.get(t.kid_id) && (
+                  <span title={kids.get(t.kid_id)!.display_name}>
+                    <Avatar user={kids.get(t.kid_id)!} size={26} />
+                    <span class="sr">{kids.get(t.kid_id)!.display_name}</span>
+                  </span>
+                )}
+              </td>
+            )}
             <td>
               {t.memo && <span class="memo">{t.memo}</span>}
               {t.category && t.type !== 'allowance' && <span class="cat">{CATEGORIES[t.category]}</span>}
-              <span class={`badge ${t.type}`}>{LABELS[t.type]}</span>
+              {/* On phones the badge is hidden unless it's the only description. */}
+              <span class={`badge ${t.type}${!t.memo && !(t.category && t.type !== 'allowance') ? ' solo' : ''}`}>{LABELS[t.type]}</span>
             </td>
             <td class="amt"><Amount cents={t.amount_cents} /></td>
             {editable && (
@@ -606,13 +634,17 @@ document.querySelectorAll('.plot[data-series]').forEach((plot) => {
 });
 `
 
-/** Smooth path through points, passing through the midpoints so it never overshoots. */
+/**
+ * Smooth path through daily points, curving through the midpoints so it never
+ * overshoots. With a point for every day, changes still land on the right day.
+ */
 function smoothPath(pts: number[][]): string {
-  let d = `M${pts[0]}`
+  const f = (p: number[]) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`
+  let d = `M${f(pts[0])}`
   for (let i = 1; i < pts.length - 1; i++) {
-    d += ` Q${pts[i]} ${(pts[i][0] + pts[i + 1][0]) / 2},${(pts[i][1] + pts[i + 1][1]) / 2}`
+    d += ` Q${f(pts[i])} ${f([(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2])}`
   }
-  return d + ` L${pts[pts.length - 1]}`
+  return d + ` L${f(pts[pts.length - 1])}`
 }
 
 /**

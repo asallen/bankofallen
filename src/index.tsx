@@ -180,7 +180,7 @@ app.get('/', async (c) => {
   const recent = (
     await db.prepare('SELECT * FROM transactions ORDER BY date DESC, id DESC LIMIT 30').all<Tx>()
   ).results
-  const names = new Map(all.map((k) => [k.id, k.display_name]))
+  const kidsById = new Map(all.map((k) => [k.id, k]))
   const today = localDate((await getSettings(db))!.timezone)
 
   return c.html(
@@ -210,7 +210,7 @@ app.get('/', async (c) => {
 
       <div class="card">
         <h2>Recent Activity</h2>
-        <TxTable txs={recent} names={names} editable />
+        <TxTable txs={recent} kids={kidsById} editable />
       </div>
     </Layout>,
   )

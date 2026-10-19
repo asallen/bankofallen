@@ -166,13 +166,20 @@ describe('passwords', () => {
 describe('savingsSeries', () => {
   const tx = (date: string, amount_cents: number, type = 'deposit') => ({ date, amount_cents, type })
 
-  it('splits each day\'s balance into saved and interest, and extends to today', () => {
-    const s = savingsSeries([tx('2026-09-05', 500, 'allowance'), tx('2026-10-01', 8, 'interest'), tx('2026-10-01', 500, 'allowance')], '2026-10-12')
-    expect(s).toEqual([
-      { date: '2026-09-05', saved: 500, interest: 0 },
-      { date: '2026-10-01', saved: 1000, interest: 8 },
-      { date: '2026-10-12', saved: 1000, interest: 8 },
+  it('has one point for every day from the first transaction through today', () => {
+    const s = savingsSeries([tx('2026-10-09', 20000), tx('2026-10-11', 964)], '2026-10-14')
+    expect(s.map((p) => [p.date, p.saved])).toEqual([
+      ['2026-10-09', 20000], ['2026-10-10', 20000], ['2026-10-11', 20964],
+      ['2026-10-12', 20964], ['2026-10-13', 20964], ['2026-10-14', 20964],
     ])
+  })
+
+  it('splits each day into saved and interest', () => {
+    const s = savingsSeries([tx('2026-09-05', 500, 'allowance'), tx('2026-10-01', 8, 'interest'), tx('2026-10-01', 500, 'allowance')], '2026-10-02')
+    expect(s).toHaveLength(28)
+    expect(s[0]).toEqual({ date: '2026-09-05', saved: 500, interest: 0 })
+    expect(s.find((p) => p.date === '2026-09-30')).toEqual({ date: '2026-09-30', saved: 500, interest: 0 })
+    expect(s.find((p) => p.date === '2026-10-01')).toEqual({ date: '2026-10-01', saved: 1000, interest: 8 })
   })
 
   it('never lets spending push "saved" below zero', () => {
@@ -180,9 +187,9 @@ describe('savingsSeries', () => {
     expect(s[s.length - 1]).toEqual({ date: '2026-09-02', saved: 0, interest: 20 })
   })
 
-  it('handles transactions in any order', () => {
-    const s = savingsSeries([tx('2026-09-02', 200), tx('2026-09-01', 100)], '2026-09-02')
-    expect(s.map((p) => p.saved)).toEqual([100, 300])
+  it('handles transactions in any order and is empty with none', () => {
+    expect(savingsSeries([tx('2026-09-02', 200), tx('2026-09-01', 100)], '2026-09-02').map((p) => p.saved)).toEqual([100, 300])
+    expect(savingsSeries([], '2026-09-02')).toEqual([])
   })
 })
 

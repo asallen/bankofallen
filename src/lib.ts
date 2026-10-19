@@ -248,25 +248,33 @@ type Dated = { amount_cents: number; date: string; type?: string }
 export type SeriesPoint = { date: string; saved: number; interest: number }
 
 /**
- * End-of-day balance split into what the kid saved and what interest added,
- * one point per day with activity, plus today. Interest is capped at the
- * balance so spending never makes "saved" go negative.
+ * End-of-day balance for every day from the first transaction through today
+ * (quiet days carry the balance forward), split into what the kid saved and
+ * what interest added. Interest is capped at the balance so spending never
+ * makes "saved" go negative.
  */
 export function savingsSeries(txs: Dated[], today: string): SeriesPoint[] {
-  const sorted = [...txs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  if (txs.length === 0) return []
+  const change = new Map<string, { total: number; interest: number }>()
+  for (const t of txs) {
+    const c = change.get(t.date) ?? { total: 0, interest: 0 }
+    c.total += t.amount_cents
+    if (t.type === 'interest') c.interest += t.amount_cents
+    change.set(t.date, c)
+  }
+  const first = txs.reduce((min, t) => (t.date < min ? t.date : min), txs[0].date)
   const points: SeriesPoint[] = []
   let balance = 0
   let interest = 0
-  sorted.forEach((t, i) => {
-    balance += t.amount_cents
-    if (t.type === 'interest') interest += t.amount_cents
-    if (i === sorted.length - 1 || sorted[i + 1].date !== t.date) {
-      const fromInterest = Math.max(0, Math.min(interest, balance))
-      points.push({ date: t.date, saved: balance - fromInterest, interest: fromInterest })
+  for (let d = first; d <= today; d = addDays(d, 1)) {
+    const c = change.get(d)
+    if (c) {
+      balance += c.total
+      interest += c.interest
     }
-  })
-  const last = points[points.length - 1]
-  if (last && last.date < today) points.push({ ...last, date: today })
+    const fromInterest = Math.max(0, Math.min(interest, balance))
+    points.push({ date: d, saved: balance - fromInterest, interest: fromInterest })
+  }
   return points
 }
 
