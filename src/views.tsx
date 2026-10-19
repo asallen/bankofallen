@@ -105,6 +105,8 @@ h2 { font-size: .95rem; font-weight: 700; margin: 0 0 16px; }
 .hero > * { position: relative; }
 .hero .bal { font-family: var(--font-display); font-size: 3.4rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.05; margin: 6px 0 4px; }
 .savings-chart { margin-top: 20px; }
+/* Pressing or dragging on the chart (and the cash pictures) shouldn't select text or open iOS's Copy/Look Up menu. */
+.savings-chart, .cash { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .savings-chart .plot { position: relative; touch-action: pan-y; cursor: crosshair; outline: none; border-radius: 4px; }
 .savings-chart .plot:focus-visible { box-shadow: 0 0 0 3px var(--focus); }
 .y-label { position: absolute; left: 0; transform: translateY(-115%); font-size: .72rem; color: var(--muted);
@@ -603,31 +605,32 @@ export const CHART_SCRIPT = `
 document.querySelectorAll('.plot[data-series]').forEach((plot) => {
   const d = JSON.parse(plot.dataset.series);
   const pts = d.points.map(([date, saved, interest]) => ({ date, t: Date.parse(date + 'T00:00:00Z'), saved, interest }));
-  const top = plot.querySelector('[data-top]'), len = top.getTotalLength();
   const line = plot.querySelector('.hover-line'), dot = plot.querySelector('.hover-dot'), tip = plot.querySelector('.tip');
   const usd = (c) => (c / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const day = (t) => new Date(t).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
-  const yAt = (ux) => { let lo = 0, hi = len; for (let i = 0; i < 22; i++) { const m = (lo + hi) / 2; if (top.getPointAtLength(m).x < ux) lo = m; else hi = m; } return top.getPointAtLength(lo).y; };
   let index = pts.length - 1;
   const show = (frac) => {
     frac = Math.min(1, Math.max(0, frac));
-    const t = Math.round((d.t0 + frac * d.span) / 864e5) * 864e5;  // snap to a whole day
+    // Snap to the nearest day: the line, dot and readout all sit on that day's point.
+    const t = Math.round((d.t0 + frac * d.span) / 864e5) * 864e5;
     let p = pts[0]; for (const q of pts) if (q.t <= t) p = q;
     index = pts.indexOf(p);
-    const ux = frac * 300, pct = frac * 100;
+    const pct = ((p.t - d.t0) / d.span) * 100;
+    const drawn = p.saved + (p.interest > 0 ? Math.max(p.interest, d.minBand) : 0);
     line.hidden = dot.hidden = tip.hidden = false;
     line.style.left = dot.style.left = pct + '%';
-    dot.style.top = yAt(ux) + '%';
-    tip.innerHTML = '<div class="tip-date">' + day(t) + '</div><div class="tip-total">' + usd(p.saved + p.interest) + '</div>'
+    dot.style.top = (96 - (drawn / d.max) * 88) + '%';
+    tip.innerHTML = '<div class="tip-date">' + day(p.t) + '</div><div class="tip-total">' + usd(p.saved + p.interest) + '</div>'
       + '<div class="tip-row"><i class="sw-saved"></i>Saved ' + usd(p.saved) + '</div>'
       + '<div class="tip-row"><i class="sw-earned"></i>Interest ' + usd(p.interest) + '</div>';
-    tip.classList.toggle('left', frac > .62);
+    tip.classList.toggle('left', pct > 62);
     tip.style.left = pct + '%';
   };
   const hide = () => { line.hidden = dot.hidden = tip.hidden = true; };
   const fracOf = (e) => { const r = plot.getBoundingClientRect(); return (e.clientX - r.left) / r.width; };
   plot.addEventListener('pointermove', (e) => show(fracOf(e)));
-  plot.addEventListener('pointerdown', (e) => show(fracOf(e)));
+  plot.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') e.preventDefault(); show(fracOf(e)); });
+  plot.addEventListener('contextmenu', (e) => e.preventDefault());
   plot.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); });
   plot.addEventListener('focus', () => show((pts[index].t - d.t0) / d.span));
   plot.addEventListener('blur', hide);
@@ -708,7 +711,7 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
         <span><i style="background:linear-gradient(90deg,var(--earned-1),var(--earned-2))" />Bank paid you <b>{money(last.interest)}</b></span>
       </div>
       <div class="plot" tabindex={0} aria-label="Savings chart. Use the arrow keys to step through dates."
-        data-series={JSON.stringify({ t0, span, points: series.map((p) => [p.date, p.saved, p.interest]) })}>
+        data-series={JSON.stringify({ t0, span, max, minBand, points: series.map((p) => [p.date, p.saved, p.interest]) })}>
       <svg class="chart" viewBox="0 0 300 100" preserveAspectRatio="none" role="img"
         aria-label={`Balance over time: ${money(last.saved)} saved plus ${money(last.interest)} from interest`}>
         <defs>
@@ -746,7 +749,6 @@ export function SavingsChart({ txs, today }: { txs: Tx[]; today: string }) {
         </g>
         <path d={saved} fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
         <line x1="0" y1="99.5" x2="300" y2="99.5" stroke="var(--line-strong)" vector-effect="non-scaling-stroke" />
-        <path d={total} fill="none" stroke="none" data-top />
       </svg>
       {/* Film grain at real screen pixels (the SVG is stretched, which would smear it),
           trimmed to the chart's shape with a mask that stretches the same way. */}
