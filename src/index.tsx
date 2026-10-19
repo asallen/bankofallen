@@ -5,7 +5,7 @@ import {
   newToken, nextAllowanceDate, parseCents, parseLoginState, prettyDate, savingStreak, USER_COLS, verifyPassword, type Tx, type User,
 } from './lib'
 import { HelpContent } from './help'
-import { Avatar, Cash, DaySelect, EditTxDialog, Icon, Layout, Money, PHOTO_SCRIPT, SavingsChart, TxActions, TxDialog, TxTable, type NavKid } from './views'
+import { Avatar, Cash, DaySelect, DIALOG_SCRIPT, EditTxDialog, Icon, Layout, Money, PHOTO_SCRIPT, SavingsChart, TxActions, TxDialog, TxTable, type NavKid } from './views'
 
 type Env = { Bindings: { DB: D1Database }; Variables: { user: User | null; navKids: NavKid[] } }
 type C = Context<Env>
@@ -385,57 +385,87 @@ app.get('/admin', async (c) => {
       <h1>Settings <span>· allowance, interest &amp; accounts</span></h1>
 
       <div class="card">
-        <h2>Interest Rate</h2>
-        <form class="row" method="post" action="/admin/rate">
-          <label>Yearly rate (%)<input name="rate" inputmode="decimal" value={String(s.interest_rate_bps / 100)} required /></label>
-          <button class="primary" style="flex:0 0 auto">Save</button>
-        </form>
+        <div class="card-head">
+          <h2>Interest Rate</h2>
+          <button type="button" class="pill" data-dialog="dlg-rate"><Icon name="edit" />Edit</button>
+        </div>
+        <div class="setting-value">{s.interest_rate_bps / 100}% a year</div>
         <p class="muted" style="margin-bottom:0">Paid on the 1st of each month: end-of-month balance × rate ÷ 12.</p>
+        <dialog id="dlg-rate">
+          <h2>Interest Rate</h2>
+          <form class="stack" method="post" action="/admin/rate">
+            <label>Yearly rate (%)<input name="rate" inputmode="decimal" value={String(s.interest_rate_bps / 100)} required /></label>
+            <p class="muted sm" style="margin:0">Paid on the 1st of each month: end-of-month balance × rate ÷ 12.</p>
+            <div class="dialog-buttons">
+              <button type="button" class="pill" data-close>Cancel</button>
+              <button class="primary">Save</button>
+            </div>
+          </form>
+        </dialog>
       </div>
 
       {users.filter((u) => u.role === 'kid').map((k) => (
         <div class="card">
-          <div class="row" style="align-items:center;margin-bottom:12px">
-            <div style="flex:0 0 auto"><Avatar user={k} size={44} /></div>
-            <div><strong>{k.display_name}</strong> <span class="muted">· username: {k.username}</span></div>
+          <div class="card-head">
+            <div class="who-row"><Avatar user={k} size={40} /><h2 style="margin:0">{k.display_name}</h2></div>
+            <button type="button" class="pill" data-dialog={`dlg-kid-${k.id}`}><Icon name="edit" />Edit</button>
           </div>
-          <form class="stack" method="post" action={`/admin/users/${k.id}`}>
-            <div class="row">
-              <label>Name<input name="display_name" value={k.display_name} required maxlength={40} /></label>
-              <label>Username (for logging in)<input name="username" value={k.username} required autocapitalize="none" pattern="[a-zA-Z0-9_\-]+" maxlength={30} /></label>
-            </div>
-            <div class="row">
-              <label>Weekly allowance<input name="allowance" inputmode="decimal" value={(k.allowance_cents / 100).toFixed(2)} /></label>
-              <label>Paid on<DaySelect name="allowance_day" value={k.allowance_day} /></label>
+          <dl class="facts">
+            <dt>Username</dt><dd>{k.username}</dd>
+            <dt>Weekly allowance</dt>
+            <dd>{k.allowance_cents > 0 ? `${money(k.allowance_cents)} every ${DAYS[k.allowance_day]}` : 'Off'}</dd>
+          </dl>
+          <dialog id={`dlg-kid-${k.id}`}>
+            <h2>Edit {k.display_name}</h2>
+            <form class="stack" method="post" action={`/admin/users/${k.id}`}>
+              <div class="row">
+                <label>Name<input name="display_name" value={k.display_name} required maxlength={40} /></label>
+                <label>Username (for logging in)<input name="username" value={k.username} required autocapitalize="none" pattern="[a-zA-Z0-9_\-]+" maxlength={30} /></label>
+              </div>
+              <div class="row">
+                <label>Weekly allowance<input name="allowance" inputmode="decimal" value={(k.allowance_cents / 100).toFixed(2)} /></label>
+                <label>Paid on<DaySelect name="allowance_day" value={k.allowance_day} /></label>
+              </div>
               <label>New password<input name="password" type="password" placeholder="Leave blank to keep" autocomplete="new-password" /></label>
-            </div>
-            <div class="dialog-buttons" style="justify-content:space-between">
-              <button class="primary">Save {k.display_name}</button>
-              <button type="submit" class="pill danger" formaction={`/admin/users/${k.id}/delete`} formnovalidate
-                onclick={`return confirm(${JSON.stringify(deleteWarning(k.display_name, stats.get(k.id)))})`}>
-                Delete account
-              </button>
-            </div>
-          </form>
+              <div class="dialog-buttons">
+                <button type="submit" class="pill danger" formaction={`/admin/users/${k.id}/delete`} formnovalidate
+                  onclick={`return confirm(${JSON.stringify(deleteWarning(k.display_name, stats.get(k.id)))})`}>
+                  Delete account
+                </button>
+                <span style="flex:1" />
+                <button type="button" class="pill" data-close>Cancel</button>
+                <button class="primary">Save</button>
+              </div>
+            </form>
+          </dialog>
         </div>
       ))}
 
       <div class="card">
-        <h2>Add an Account</h2>
-        <form class="stack" method="post" action="/admin/users">
-          <div class="row">
-            <label>Username<input name="username" required autocapitalize="none" pattern="[a-zA-Z0-9_\-]+" /></label>
-            <label>Password<input name="password" type="password" required minlength={4} autocomplete="new-password" /></label>
+        <div class="card-head">
+          <h2>Accounts</h2>
+          <button type="button" class="pill primary" data-dialog="dlg-add"><Icon name="deposit" />Add account</button>
+        </div>
+        <p class="muted" style="margin:0">Add a kid (savings account) or another parent. Kids can set their own name and photo after logging in.</p>
+        <dialog id="dlg-add">
+          <h2>Add an Account</h2>
+          <form class="stack" method="post" action="/admin/users">
             <label>Type
               <select name="role">
                 <option value="kid">Kid (savings account)</option>
                 <option value="parent">Parent (banker)</option>
               </select>
             </label>
-          </div>
-          <div><button class="primary">Add account</button></div>
-        </form>
-        <p class="muted" style="margin-bottom:0">Kids can set their own name and photo after logging in.</p>
+            <div class="row">
+              <label>Username<input name="username" required autocapitalize="none" pattern="[a-zA-Z0-9_\-]+" /></label>
+              <label>Password<input name="password" type="password" required minlength={4} autocomplete="new-password" /></label>
+            </div>
+            <div class="dialog-buttons">
+              <button type="button" class="pill" data-close>Cancel</button>
+              <button class="primary">Add account</button>
+            </div>
+          </form>
+        </dialog>
       </div>
 
       <div class="card">
@@ -447,6 +477,7 @@ app.get('/admin', async (c) => {
           </div>
         ))}
       </div>
+      <script dangerouslySetInnerHTML={{ __html: DIALOG_SCRIPT }} />
     </Layout>,
   )
 })

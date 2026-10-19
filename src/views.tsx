@@ -232,7 +232,12 @@ dialog { border: 1px solid var(--line); border-radius: 16px; padding: 28px; widt
 dialog::backdrop { background: rgba(15, 15, 25, .45); backdrop-filter: blur(3px); }
 dialog h2 { font-size: 1.25rem; margin-bottom: 20px; }
 .dialog-buttons { display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
-.pill.danger { color: var(--err); background: none; box-shadow: none; padding-left: 4px; padding-right: 4px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.card-head h2 { margin: 0; }
+.who-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.setting-value { font-size: 1.45rem; font-weight: 700; margin-bottom: 4px; }
+.card-head .pill { padding: 7px 14px; font-size: .88rem; }
+.pill.danger { color: var(--err); background: none; box-shadow: none; padding-left: 4px; padding-right: 4px; white-space: nowrap; }
 .pill.danger:hover { background: none; text-decoration: underline; }
 [hidden] { display: none !important; }
 td.edit { width: 1%; padding-left: 0; }
@@ -864,6 +869,16 @@ const EDIT_SCRIPT = `
   });
   d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
 })();
+`
+
+/** Generic: [data-dialog="id"] opens that dialog; [data-close] or a backdrop click closes it. */
+export const DIALOG_SCRIPT = `
+document.addEventListener('click', (e) => {
+  const open = e.target.closest('[data-dialog]');
+  if (open) { const d = document.getElementById(open.dataset.dialog); d.showModal(); d.querySelector('input:not([type=hidden])')?.focus(); return; }
+  if (e.target.closest('[data-close]')) { e.target.closest('dialog').close(); return; }
+  if (e.target.tagName === 'DIALOG') e.target.close();
+});
 `
 
 const TX_SCRIPT = `

@@ -103,15 +103,15 @@ export function HelpContent({ status: s }: { status: HelpStatus }) {
           <li><strong>Shouldn't exist at all:</strong> open it with ✎ and choose <em>Delete</em>. Deleted allowance and interest payments are not re-paid.</li>
           <li><strong>Forgot to record something:</strong> use <em>Deposit</em> or <em>Debit</em> and set the date to when it happened.</li>
           <li><strong>Interest after an edit:</strong> editing an old transaction doesn't recalculate interest already paid. If it matters, edit that month's interest entry by hand.</li>
-          <li><strong>Rename a kid or change their login:</strong> edit <em>Name</em> or <em>Username</em> on their card in <a href="/admin">Settings</a>. Their history stays.</li>
-          <li><strong>Remove a kid:</strong> <em>Delete account</em> on their card in Settings removes the account and all its transactions. It can only be brought back with a full rollback within 7 days.</li>
+          <li><strong>Rename a kid or change their login:</strong> in <a href="/admin">Settings</a>, tap <em>Edit</em> on their card and change <em>Name</em> or <em>Username</em>. Their history stays.</li>
+          <li><strong>Remove a kid:</strong> <em>Delete account</em> (in the Edit pop-up on their Settings card) removes the account and all its transactions. It can only be brought back with a full rollback within 7 days.</li>
           <li><strong>A big mess</strong> (lots of wrong changes): roll the whole database back. See <a href="#backups">Backups</a>.</li>
         </ul>
       </Section>
 
       <Section id="passwords" title="Passwords & Lockouts">
         <ul>
-          <li><strong>A kid forgot their password:</strong> set a new one in <a href="/admin">Settings</a>, under their card.</li>
+          <li><strong>A kid forgot their password:</strong> in <a href="/admin">Settings</a>, tap <em>Edit</em> on their card and enter a new password.</li>
           <li><strong>Locked out:</strong> 5 wrong passwords in a row locks that username for 15 minutes. Wait, or reset the password, which also unlocks it.</li>
           <li><strong>A parent forgot their password</strong> (works for anyone): on a computer with this project, Node 22.18+, and <code>npx wrangler login</code> done, run the command below. It asks for the new password, saves it, signs them out everywhere, and clears any lockout.</li>
         </ul>
