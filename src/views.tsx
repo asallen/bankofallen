@@ -944,7 +944,8 @@ document.getElementById('photo-file').addEventListener('change', async (e) => {
 const COUNTER_CSS = `
 dialog.cash-dialog { width: 100%; height: 100%; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0;
   border-radius: 0; background: transparent; box-shadow: none; color: #FFFCF4; overflow: hidden; touch-action: none; }
-dialog.cash-dialog[open] { animation: cd-fade .25s ease-out; }
+dialog.cash-dialog[open], dialog.cash-dialog[open]::backdrop { animation: cd-fade .3s ease-out; }
+dialog.cash-dialog.closing, dialog.cash-dialog.closing::backdrop { animation: cd-fade-out .25s ease-in forwards; }
 dialog.cash-dialog::backdrop { background: radial-gradient(60% 50% at 50% 50%, rgba(34, 87, 128, .55), transparent 70%), rgba(4, 13, 35, .84);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .cd-wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
@@ -956,7 +957,13 @@ dialog.cash-dialog::backdrop { background: radial-gradient(60% 50% at 50% 50%, r
 .cd-count.pop { animation: cd-pop .28s ease-out; }
 .cd-count.done { color: #FFD13F; }
 .cd-of { color: rgba(255, 252, 244, .65); font-size: .95rem; font-variant-numeric: tabular-nums; }
-.cd-stage { position: relative; width: 100%; max-width: 440px; height: min(50vh, 340px); perspective: 900px; touch-action: none; }
+.cd-table { position: relative; width: 100%; max-width: 440px; }
+.cd-done { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  text-align: center; animation: cd-fade .4s ease-out .3s backwards; }
+.cd-done[hidden] { display: none; }
+.cd-done p { margin: 0; font-size: 1.05rem; color: rgba(255, 252, 244, .8); }
+.cd-done .pill { font-size: 1.05rem; padding: 12px 26px; }
+.cd-stage { position: relative; width: 100%; height: min(50vh, 340px); perspective: 900px; touch-action: none; }
 .cd-card { position: absolute; left: 50%; top: 42%; cursor: grab; touch-action: none; will-change: transform;
   transition: transform .4s cubic-bezier(.2, .8, .2, 1), opacity .3s; }
 .cd-card.dragging { transition: none; cursor: grabbing; }
@@ -981,6 +988,7 @@ dialog.cash-dialog::backdrop { background: radial-gradient(60% 50% at 50% 50%, r
 .cd-confetti i { position: absolute; left: 50%; top: 32%; width: 8px; height: 13px; border-radius: 2px;
   animation: cd-burst 1.6s cubic-bezier(.15, .7, .35, 1) forwards; }
 @keyframes cd-fade { from { opacity: 0; } }
+@keyframes cd-fade-out { to { opacity: 0; } }
 @keyframes cd-pop { 50% { transform: scale(1.08); } }
 @keyframes cd-nudge { 0%, 100% { translate: 0; rotate: 0deg; } 25% { translate: 26px 0; rotate: 5deg; } 50% { translate: -8px 0; rotate: -1.5deg; } 70% { translate: 0; rotate: 0deg; } }
 @keyframes cd-burst { from { transform: translate(-50%, 0) rotate(0); opacity: 1; }
@@ -1009,7 +1017,13 @@ export function CashCounter() {
           <div class="cd-count" data-counted>$0</div>
           <div class="cd-of" data-of></div>
         </div>
-        <div class="cd-stage" data-stage />
+        <div class="cd-table">
+          <div class="cd-stage" data-stage />
+          <div class="cd-done" data-done hidden>
+            <p>Every bill and coin is counted.</p>
+            <button type="button" class="pill primary" data-again>Count it again</button>
+          </div>
+        </div>
         <div class="cd-hint" data-hint>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v4a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.6-2.2L4.5 14.5a1.5 1.5 0 0 1 2.3-1.9L9 15" />
@@ -1027,7 +1041,7 @@ const COUNTER_SCRIPT = `
 (() => {
   const d = document.getElementById('cash-dialog');
   const $ = (s) => d.querySelector(s);
-  const stage = $('[data-stage]'), countEl = $('[data-counted]'), ofEl = $('[data-of]'), labelEl = $('[data-label]'), hint = $('[data-hint]');
+  const stage = $('[data-stage]'), done = $('[data-done]'), countEl = $('[data-counted]'), ofEl = $('[data-of]'), labelEl = $('[data-label]'), hint = $('[data-hint]');
 
   // Flat, US-style money: every bill is green like the real ones, with Bank of Allen touches.
   const BILLS = { 100: 'ONE', 500: 'FIVE', 1000: 'TEN', 5000: 'FIFTY', 10000: 'ONE HUNDRED', 50000: 'FIVE HUNDRED', 100000: 'ONE THOUSAND' };
@@ -1143,7 +1157,7 @@ const COUNTER_SCRIPT = `
       + '</g></svg>';
   }
 
-  let deck = [], total = 0, counted = 0, seen = 0, finished = false, shown = 0, raf = 0;
+  let deck = [], total = 0, counted = 0, shown = 0, raf = 0;
   let fmt = String;
 
   function place(el, x, y, rot, scale, tiltY) {
@@ -1157,10 +1171,13 @@ const COUNTER_SCRIPT = `
     place(el, i ? el._dx : 0, depth * 7 + (lift || 0), i ? el._rot : 0, 1 - depth * .03);
   }
   function layout() {
-    deck.forEach((el, i) => { if (el._out) return; slot(el, i); el.style.opacity = i > 6 ? '0' : '1'; });
+    deck.forEach((el, i) => { slot(el, i); el.style.opacity = i > 6 ? '0' : '1'; });
   }
 
+  let source;
   function open(src) {
+    source = src;
+    done.hidden = true;
     stage.replaceChildren();
     $('[data-confetti]').replaceChildren();
     const values = [];
@@ -1179,12 +1196,13 @@ const COUNTER_SCRIPT = `
       stage.appendChild(el);
       return el;
     });
-    counted = 0; seen = 0; shown = 0; finished = false;
+    counted = 0; shown = 0;
     countEl.textContent = fmt(0); countEl.classList.remove('done');
     labelEl.textContent = 'Counted';
     ofEl.textContent = 'of ' + fmt(total);
     hint.classList.remove('gone');
-    d.showModal();
+    if (closing) { clearTimeout(closing); closing = 0; d.classList.remove('closing'); }
+    if (!d.open) d.showModal();
     stage.offsetWidth; // deal the stack in from below
     deck.forEach((el, i) => { el.style.transition = ''; el.style.transitionDelay = Math.min(i, 6) * 30 + 'ms'; });
     layout();
@@ -1205,10 +1223,11 @@ const COUNTER_SCRIPT = `
   }
 
   function celebrate() {
-    finished = true;
     labelEl.textContent = 'You counted it all!';
     countEl.classList.add('done');
-    ofEl.textContent = 'Swipe again to count it over';
+    ofEl.textContent = '';
+    done.hidden = false;
+    done.querySelector('[data-again]').focus();
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const box = $('[data-confetti]'), colors = ['#FFD13F', '#FF667D', '#A6C45F', '#9E66FF', '#1880AF', '#FF9860'];
     for (let i = 0; i < 46; i++) {
@@ -1245,44 +1264,28 @@ const COUNTER_SCRIPT = `
     } catch {}
   }
 
-  // Throw the top card off the stack, count it, and tuck it back under the bottom.
+  // Throw the top card off the stack and count it. When the stack is gone, it's all counted.
   function fling(dx, dy) {
-    if (!deck[0] || deck[0]._out) return;
     const el = deck.shift();
-    if (finished) { counted = 0; seen = 0; shown = 0; finished = false; labelEl.textContent = 'Counted'; countEl.classList.remove('done'); ofEl.textContent = 'of ' + fmt(total); }
+    if (!el) return;
     const m = Math.hypot(dx, dy) || 1, far = Math.max(innerWidth, innerHeight) * .9;
     el.classList.remove('hinting', 'dragging'); el.classList.add('flying');
     el.style.zIndex = '2000';
     place(el, dx / m * far, dy / m * far - 40, (dx >= 0 ? 1 : -1) * 38, .95, (dx >= 0 ? 1 : -1) * 25);
     el.style.opacity = '0';
-    deck.push(el);
-    counted += el._v; seen++;
+    setTimeout(() => el.remove(), 500);
+    counted += el._v;
     rollTo(counted);
     sound(el._coin);
     navigator.vibrate?.(8);
-    if (seen === deck.length) setTimeout(celebrate, 200);
-    // Everyone else moves up now, so the next card can be grabbed straight away.
-    el._out = true;
-    layout();
-    setTimeout(() => {
-      if (!el._out) return;
-      el._out = false;
-      el.classList.remove('flying');
-      const i = deck.indexOf(el);
-      el.style.transition = 'none';
-      slot(el, i, 30); // slide it in under the stack
-      el.offsetWidth;
-      el.style.transition = '';
-      el.style.opacity = i > 6 ? '0' : '1';
-      slot(el, i);
-    }, 480);
+    layout(); // everyone else moves up, so the next one can be grabbed straight away
+    if (!deck.length) setTimeout(celebrate, 250);
   }
 
   let drag = null, lastDrag = 0;
   stage.addEventListener('pointerdown', (e) => {
     const el = deck[0];
     if (!el || !e.target.closest('.cd-card')) return; // a press anywhere on the stack picks up the top one
-    if (el._out) return; // a one-card stack that's still flying
     el.setPointerCapture(e.pointerId);
     el.classList.remove('hinting'); el.classList.add('dragging');
     hint.classList.add('gone');
@@ -1311,13 +1314,22 @@ const COUNTER_SCRIPT = `
   stage.addEventListener('pointerup', release);
   stage.addEventListener('pointercancel', release);
 
-  const close = () => { d.close(); cancelAnimationFrame(raf); };
+  // Fade out, then close. (Escape comes through 'cancel', so it fades too.)
+  let closing = 0;
+  const close = () => {
+    if (!d.open || closing) return;
+    d.classList.add('closing');
+    closing = setTimeout(() => { d.close(); d.classList.remove('closing'); closing = 0; cancelAnimationFrame(raf); }, 250);
+  };
+  d.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
   d.addEventListener('click', (e) => {
     if (e.target.closest('[data-close-cash]')) return close();
+    if (e.target.closest('[data-again]')) return open(source);
     if (Date.now() - lastDrag < 300 || e.target.closest('.cd-card')) return;
     if (e.target === d || e.target.classList.contains('cd-wrap')) close();
   });
   d.addEventListener('keydown', (e) => {
+    if (e.key === ' ' && e.target.closest('button')) return; // Space presses the focused button
     if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); hint.classList.add('gone'); fling(1, 0); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); hint.classList.add('gone'); fling(-1, 0); }
   });
