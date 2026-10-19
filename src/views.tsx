@@ -63,9 +63,9 @@ const CSS = `
   }
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+html { -webkit-text-size-adjust: 100%; background: var(--bg); overflow-x: clip; }
 body { margin: 0; background: var(--page-wash), var(--bg); background-attachment: fixed; min-height: 100vh; color: var(--text); font: 15px/1.55 var(--font-text);
-  -webkit-font-smoothing: antialiased; position: relative; overflow-x: hidden; }
+  -webkit-font-smoothing: antialiased; position: relative; overflow-x: hidden; overflow-x: clip; max-width: 100vw; }
 a { color: var(--brand-lite); text-decoration: none; }
 a:hover { color: var(--text); }
 
@@ -264,16 +264,18 @@ code { font: .85em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: va
 
 @media (max-width: 900px) {
   .shell { display: block; }
-  .side { position: static; height: auto; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px;
+  .side { position: static; height: auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; align-items: center; gap: 8px 12px;
     padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
   .side .logo { padding: 4px 0; margin: 0; border: 0; }
-  .side-nav { grid-column: 1 / -1; flex-direction: row; overflow-x: auto; gap: 4px; margin: 0 -4px; }
+  .side-nav { grid-column: 1 / -1; flex-direction: row; overflow-x: auto; gap: 4px; margin: 0; min-width: 0; max-width: 100%;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .side-nav::-webkit-scrollbar { display: none; }
   .side-link { width: auto; padding: 7px 12px; font-size: .9rem; }
   .side-label, .side-link.kid { display: none; }
   .side-foot { margin: 0; padding: 0; border: 0; grid-column: 2; grid-row: 1; }
   .side-foot .side-link { padding: 6px 12px; background: var(--raised); border-radius: 32px; font-size: .85rem; }
   .side-foot svg { display: none; }
-  .content { padding: 24px 16px 64px; }
+  .content { padding: 24px 16px 64px; min-width: 0; }
 }
 
 @media (max-width: 600px) {
@@ -471,9 +473,9 @@ export function TxTable({ txs, kids, editable }: { txs: Tx[]; kids?: Map<number,
             )}
             <td>
               {t.memo && <span class="memo">{t.memo}</span>}
-              {t.category && t.type !== 'allowance' && <span class="cat">{CATEGORIES[t.category]}</span>}
+              {t.category && <span class="cat">{CATEGORIES[t.category]}</span>}
               {/* On phones the badge is hidden unless it's the only description. */}
-              <span class={`badge ${t.type}${!t.memo && !(t.category && t.type !== 'allowance') ? ' solo' : ''}`}>{LABELS[t.type]}</span>
+              <span class={`badge ${t.type}${!t.memo && !t.category ? ' solo' : ''}`}>{LABELS[t.type]}</span>
             </td>
             <td class="amt"><Amount cents={t.amount_cents} /></td>
             {editable && (
