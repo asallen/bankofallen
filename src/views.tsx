@@ -63,6 +63,14 @@ const CSS = `
   }
 }
 * { box-sizing: border-box; }
+.ptr { position: fixed; top: calc(env(safe-area-inset-top) - 44px); left: 50%; z-index: 50; width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--card); color: var(--muted); box-shadow: 0 4px 16px -4px rgba(17, 30, 61, .35);
+  transform: translate(-50%, 0); transition: transform .25s, opacity .2s, color .15s; opacity: 0; pointer-events: none; }
+.ptr.show { opacity: 1; }
+.ptr.ready { color: var(--text); }
+.ptr svg { width: 20px; height: 20px; }
+.ptr.loading svg { animation: ptr-spin .8s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
 html { -webkit-text-size-adjust: 100%; background: var(--bg); overflow-x: clip; }
 body { margin: 0; background: var(--page-wash), var(--bg); background-attachment: fixed; min-height: 100vh; color: var(--text); font: 15px/1.55 var(--font-text);
   -webkit-font-smoothing: antialiased; position: relative; overflow-x: hidden; overflow-x: clip; max-width: 100vw; }
@@ -399,6 +407,7 @@ export function Layout(props: LayoutProps) {
             </main>
           </>
         )}
+        <script dangerouslySetInnerHTML={{ __html: PULL_TO_REFRESH }} />
       </body>
     </html>
   )
@@ -926,6 +935,61 @@ export function DaySelect({ name, value }: { name: string; value: number }) {
     </select>
   )
 }
+
+/**
+ * Pull down from the top to reload the page. Only in the home-screen app,
+ * which has no reload button; browsers already do this themselves.
+ */
+const PULL_TO_REFRESH = `
+(() => {
+  if (!(navigator.standalone || matchMedia('(display-mode: standalone)').matches)) return;
+  const el = document.createElement('div'), GO = 70, MAX = 110;
+  el.className = 'ptr';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/></svg>';
+  document.body.appendChild(el);
+  const icon = el.firstChild;
+  let y0 = null, x0 = 0, pull = 0, pulling = false;
+  addEventListener('touchstart', (e) => {
+    y0 = null;
+    if (e.touches.length !== 1 || scrollY > 0 || document.querySelector('dialog[open]')) return;
+    y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; pull = 0; pulling = false;
+  }, { passive: true });
+  addEventListener('touchmove', (e) => {
+    if (y0 === null) return;
+    const dy = e.touches[0].clientY - y0, dx = e.touches[0].clientX - x0;
+    if (!pulling) {
+      // Sideways (like scrubbing the chart) or upward isn't a pull.
+      if (Math.abs(dx) > 10 && Math.abs(dx) > dy || dy < -4) { y0 = null; return; }
+      if (dy < 10) return;
+      pulling = true;
+      el.classList.add('show');
+      el.style.transition = 'opacity .2s, color .15s';
+    }
+    pull = Math.min(MAX, (dy - 10) * .5);
+    el.style.transform = 'translate(-50%, ' + pull + 'px)';
+    icon.style.transform = 'rotate(' + pull * 3 + 'deg)';
+    el.classList.toggle('ready', pull >= GO);
+  }, { passive: true });
+  const end = () => {
+    if (y0 === null) return;
+    y0 = null;
+    if (!pulling) return;
+    el.style.transition = '';
+    if (pull >= GO) {
+      el.classList.add('loading');
+      icon.style.transform = '';
+      el.style.transform = 'translate(-50%, ' + GO + 'px)';
+      location.reload();
+    } else {
+      el.classList.remove('show', 'ready');
+      el.style.transform = '';
+    }
+  };
+  addEventListener('touchend', end);
+  addEventListener('touchcancel', end);
+})();
+`
 
 /** Resizes the chosen photo to a 256px square JPEG in the browser before upload. */
 export const PHOTO_SCRIPT = `
